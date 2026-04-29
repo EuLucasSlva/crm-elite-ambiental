@@ -1,0 +1,551 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  MANAGER
+  TECHNICIAN
+}
+
+enum CustomerType {
+  PERSON
+  COMPANY
+}
+
+enum PropertyType {
+  RESIDENTIAL
+  COMMERCIAL
+  INDUSTRIAL
+  RURAL
+}
+
+enum LeadSource {
+  WHATSAPP
+  PHONE
+  REFERRAL
+  PORTAL
+  DOOR_TO_DOOR
+}
+
+enum ServiceOrderStatus {
+  LEAD_CAPTURED
+  INSPECTION_SCHEDULED
+  VISIT_DONE
+  QUOTE_CREATED
+  QUOTE_APPROVED
+  QUOTE_REJECTED
+  SERVICE_SCHEDULED
+  SERVICE_EXECUTED
+  CERTIFICATE_ISSUED
+  WARRANTY_ACTIVE
+  CLOSED
+  CANCELED
+}
+
+enum ServiceType {
+  INSPECTION
+  TREATMENT
+  RETURN
+}
+
+enum OccurrenceType {
+  RESCHEDULED
+  DELAYED
+  CANCELED
+  NOT_EXECUTED
+  CUSTOMER_UNAVAILABLE
+  UNSAFE_CONDITIONS
+  WEATHER
+  OTHER
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+}
+
+enum StockUnit {
+  ML
+  G
+  L
+  KG
+  UNIT
+  M2
+}
+
+enum WarrantyStatus {
+  ACTIVE
+  EXPIRED
+  VOIDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum ExpenseCategory {
+  FUEL
+  PPE
+  CHEMICAL
+  SALARY
+  RENT
+  ADMIN
+  MAINTENANCE
+  MARKETING
+  TAXES
+  OTHER
+}
+
+enum PaymentMethod {
+  PIX
+  CASH
+  CARD
+  TRANSFER
+  BOLETO
+}
+
+enum BatchStatus {
+  ACTIVE
+  EXHAUSTED
+  QUARANTINE
+}
+
+// ─────────────────────────────────────────────
+// User
+// ─────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  phone        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  managedOrders    ServiceOrder[]   @relation("Manager")
+  technicianOrders ServiceOrder[]   @relation("Technician")
+  technicalVisits  TechnicalVisit[]
+  stockMovements   StockMovement[]
+  auditLogs        AuditLog[]
+  occurrences      Occurrence[]
+  quotesApproved   Quote[]          @relation("QuoteApprover")
+  expensesCreated  Expense[]        @relation("ExpenseCreator")
+
+  @@index([email])
+  @@index([role])
+}
+
+// ─────────────────────────────────────────────
+// Customer
+// ─────────────────────────────────────────────
+
+model Customer {
+  id               String       @id @default(cuid())
+  type             CustomerType
+  fullName         String
+  cpfCnpj          String       @unique
+  street           String
+  number           String
+  complement       String?
+  city             String
+  state            String
+  zip              String
+  phone            String
+  email            String?
+  propertyType     PropertyType
+  siteSizeM2       Float
+  hadServiceBefore Boolean      @default(false)
+  lastServiceDate  DateTime?
+  leadSource       LeadSource
+  notes            String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  serviceOrders      ServiceOrder[]
+  recurringContracts RecurringContract[]
+
+  @@index([cpfCnpj])
+  @@index([fullName])
+  @@index([leadSource])
+}
+
+// ─────────────────────────────────────────────
+// Service Order
+// ─────────────────────────────────────────────
+
+model ServiceOrder {
+  id           String             @id @default(cuid())
+  customerId   String
+  status       ServiceOrderStatus @default(LEAD_CAPTURED)
+  serviceType  ServiceType        @default(INSPECTION)
+  isFree       Boolean            @default(false)
+  technicianId String?
+  managerId    String?
+  pestTypes    String[]
+  scheduledAt  DateTime?
+  executedAt   DateTime?
+  closedAt     DateTime?
+  notes        String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  // Financial fields
+  price         Float?        // Value charged to the client (R$)
+  cost          Float?        // Computed cost from stock usage (R$)
+  paymentStatus PaymentStatus @default(PENDING)
+  paidAt        DateTime?
+
+  customer        Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  technician      User?            @relation("Technician", fields: [technicianId], references: [id])
+  manager         User?            @relation("Manager", fields: [managerId], references: [id])
+  occurrences     Occurrence[]
+  quotes          Quote[]
+  technicalVisits TechnicalVisit[]
+  certificate     Certificate?
+  warranty        Warranty?
+  stockMovements  StockMovement[]
+  auditLogs       AuditLog[]       @relation("ServiceOrderAudit")
+  expenses        Expense[]        @relation("ServiceOrderExpenses")
+
+  @@index([customerId])
+  @@index([status])
+  @@index([technicianId])
+  @@index([scheduledAt])
+  @@index([paymentStatus])
+  @@index([paidAt])
+}
+
+// ─────────────────────────────────────────────
+// Occurrence
+// ─────────────────────────────────────────────
+
+model Occurrence {
+  id             String         @id @default(cuid())
+  serviceOrderId String
+  type           OccurrenceType
+  reason         String?
+  recordedById   String
+  recordedAt     DateTime       @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  recordedBy   User         @relation(fields: [recordedById], references: [id])
+
+  @@index([serviceOrderId])
+}
+
+// ─────────────────────────────────────────────
+// Quote
+// ─────────────────────────────────────────────
+
+model Quote {
+  id             String      @id @default(cuid())
+  serviceOrderId String
+  status         QuoteStatus @default(DRAFT)
+  totalAmount    Float       @default(0)
+  validUntil     DateTime?
+  approvedAt     DateTime?
+  approvedById   String?
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+  approvedBy   User?        @relation("QuoteApprover", fields: [approvedById], references: [id])
+  items        QuoteItem[]
+
+  @@index([serviceOrderId])
+  @@index([status])
+}
+
+model QuoteItem {
+  id          String @id @default(cuid())
+  quoteId     String
+  description String
+  quantity    Float
+  unitPrice   Float
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────
+// Technical Visit
+// ─────────────────────────────────────────────
+
+model TechnicalVisit {
+  id                String    @id @default(cuid())
+  serviceOrderId    String
+  technicianId      String
+  scheduledAt       DateTime
+  checkInAt         DateTime?
+  checkOutAt        DateTime?
+  customerSignature String?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  serviceOrder      ServiceOrder       @relation(fields: [serviceOrderId], references: [id])
+  technician        User               @relation(fields: [technicianId], references: [id])
+  applicationPoints ApplicationPoint[]
+  stockMovements    StockMovement[]
+
+  @@index([serviceOrderId])
+  @@index([technicianId])
+  @@index([scheduledAt])
+}
+
+model ApplicationPoint {
+  id          String    @id @default(cuid())
+  visitId     String
+  location    String
+  productName String
+  doseApplied Float
+  unit        StockUnit
+
+  visit TechnicalVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────
+// Certificate
+// ─────────────────────────────────────────────
+
+model Certificate {
+  id                   String   @id @default(cuid())
+  serviceOrderId       String   @unique
+  technicalResponsible String
+  licenseNumber        String
+  pestsTargeted        String[]
+  productsUsed         String[]
+  applicationAreas     String[]
+  observations         String?
+  issuedAt             DateTime @default(now())
+  pdfUrl               String?
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([serviceOrderId])
+}
+
+// ─────────────────────────────────────────────
+// Warranty
+// ─────────────────────────────────────────────
+
+model Warranty {
+  id             String         @id @default(cuid())
+  serviceOrderId String         @unique
+  startsAt       DateTime
+  expiresAt      DateTime
+  alertSentAt45  DateTime?
+  alertSentAt30  DateTime?
+  status         WarrantyStatus @default(ACTIVE)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@index([status])
+  @@index([expiresAt])
+}
+
+// ─────────────────────────────────────────────
+// Recurring Contract
+// ─────────────────────────────────────────────
+
+model RecurringContract {
+  id                   String      @id @default(cuid())
+  customerId           String
+  intervalDays         Int
+  nextOrderDate        DateTime
+  serviceType          ServiceType
+  active               Boolean     @default(true)
+  lastGeneratedOrderId String?
+  notes                String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId])
+  @@index([nextOrderDate])
+  @@index([active])
+}
+
+// ─────────────────────────────────────────────
+// Stock Item
+// ─────────────────────────────────────────────
+
+model StockItem {
+  id               String    @id @default(cuid())
+  name             String
+  activeIngredient String?
+  unit             StockUnit
+  quantity         Float     @default(0)
+  minThreshold     Float     @default(0)
+  unitCost         Float     @default(0) // Cost per unit (R$) — used to compute OS cost
+  expiryDate       DateTime?
+  supplier         String?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  movements StockMovement[]
+  batches   StockBatch[]
+
+  @@index([name])
+  @@index([expiryDate])
+}
+
+// ─────────────────────────────────────────────
+// Stock Movement
+// ─────────────────────────────────────────────
+
+model StockMovement {
+  id               String   @id @default(cuid())
+  stockItemId      String
+  batchId          String?
+  serviceOrderId   String?
+  visitId          String?
+  applicationPoint String?
+  delta            Float
+  unitCostSnapshot Float    @default(0) // Cost per unit at the time of movement
+  reason           String?
+  performedById    String
+  performedAt      DateTime @default(now())
+
+  stockItem    StockItem       @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  batch        StockBatch?     @relation(fields: [batchId], references: [id])
+  serviceOrder ServiceOrder?   @relation(fields: [serviceOrderId], references: [id], onDelete: SetNull)
+  visit        TechnicalVisit? @relation(fields: [visitId], references: [id])
+  performedBy  User            @relation(fields: [performedById], references: [id])
+
+  @@index([stockItemId])
+  @@index([batchId])
+  @@index([serviceOrderId])
+  @@index([performedAt])
+}
+
+// ─────────────────────────────────────────────
+// Stock Batch — lote de um produto (FEFO)
+// ─────────────────────────────────────────────
+
+model StockBatch {
+  id              String      @id @default(cuid())
+  stockItemId     String
+  batchNumber     String?
+  initialQuantity Float
+  quantity        Float        // qtd restante no lote
+  expiryDate      DateTime?
+  unitCost        Float        @default(0)
+  supplier        String?
+  receivedAt      DateTime     @default(now())
+  status          BatchStatus  @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  stockItem StockItem       @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  movements StockMovement[]
+
+  @@index([stockItemId, expiryDate])
+  @@index([stockItemId, quantity])
+  @@index([expiryDate])
+  @@index([status])
+}
+
+// ─────────────────────────────────────────────
+// Expense — despesa do fluxo de caixa
+// ─────────────────────────────────────────────
+
+model Expense {
+  id             String          @id @default(cuid())
+  category       ExpenseCategory
+  description    String
+  amount         Float
+  paidAt         DateTime
+  paymentMethod  PaymentMethod
+  supplier       String?
+  serviceOrderId String?
+  createdById    String
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  serviceOrder ServiceOrder? @relation("ServiceOrderExpenses", fields: [serviceOrderId], references: [id], onDelete: SetNull)
+  createdBy    User          @relation("ExpenseCreator", fields: [createdById], references: [id])
+
+  @@index([paidAt])
+  @@index([category])
+  @@index([serviceOrderId])
+  @@index([createdById])
+}
+
+// ─────────────────────────────────────────────
+// PestType — catálogo de pragas
+// ─────────────────────────────────────────────
+
+model PestType {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  category  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+  @@index([category])
+}
+
+// ─────────────────────────────────────────────
+// ApplicationArea — catálogo de áreas de aplicação
+// ─────────────────────────────────────────────
+
+model ApplicationArea {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active])
+}
+
+// ─────────────────────────────────────────────
+// Audit Log
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  entityName     String
+  entityId       String
+  userId         String
+  field          String
+  oldValue       String?
+  newValue       String?
+  timestamp      DateTime @default(now())
+  serviceOrderId String?
+
+  user         User          @relation(fields: [userId], references: [id])
+  serviceOrder ServiceOrder? @relation("ServiceOrderAudit", fields: [serviceOrderId], references: [id])
+
+  @@index([entityName, entityId])
+  @@index([userId])
+  @@index([timestamp])
+}
