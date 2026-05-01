@@ -82,6 +82,92 @@ export async function createServiceOrder(
   redirect(`/service-orders/${order.id}`);
 }
 
+// ── Quick customer creation (used by the inline modal in New OS form) ─────────
+
+import { isValidCpfOrCnpj } from "@/lib/format";
+
+const quickCustomerSchema = z.object({
+  type: z.enum(["PERSON", "COMPANY"]),
+  fullName: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
+  cpfCnpj: z
+    .string()
+    .min(1, "CPF/CNPJ é obrigatório")
+    .refine((v) => isValidCpfOrCnpj(v), "CPF ou CNPJ inválido"),
+  phone: z.string().min(10, "Telefone inválido"),
+  email: z.string().email("E-mail inválido").optional().or(z.literal("")),
+  street: z.string().min(1, "Rua é obrigatória"),
+  number: z.string().min(1, "Número é obrigatório"),
+  complement: z.string().optional(),
+  city: z.string().min(1, "Cidade é obrigatória"),
+  state: z.string().length(2, "Use a sigla (2 letras)"),
+  zip: z.string().min(8, "CEP inválido"),
+  propertyType: z.enum(["RESIDENTIAL", "COMMERCIAL", "INDUSTRIAL", "RURAL"]),
+  siteSizeM2: z.coerce.number().positive("Tamanho deve ser positivo"),
+  leadSource: z.enum(["WHATSAPP", "PHONE", "REFERRAL", "PORTAL", "DOOR_TO_DOOR"]),
+});
+
+export type QuickCustomerState = {
+  errors?: Record<string, string[]>;
+  message?: string;
+  created?: { id: string; fullName: string; cpfCnpj: string; city: string; state: string };
+};
+
+export async function createCustomerQuick(
+  _prev: QuickCustomerState,
+  formData: FormData
+): Promise<QuickCustomerState> {
+  const session = await auth();
+  if (!session?.user) return { message: "Sessão expirada. Faça login novamente." };
+
+  const parsed = quickCustomerSchema.safeParse({
+    type: formData.get("type"),
+    fullName: formData.get("fullName"),
+    cpfCnpj: formData.get("cpfCnpj"),
+    phone: formData.get("phone"),
+    email: formData.get("email") || undefined,
+    street: formData.get("street"),
+    number: formData.get("number"),
+    complement: formData.get("complement") || undefined,
+    city: formData.get("city"),
+    state: formData.get("state"),
+    zip: formData.get("zip"),
+    propertyType: formData.get("propertyType"),
+    siteSizeM2: formData.get("siteSizeM2"),
+    leadSource: formData.get("leadSource"),
+  });
+
+  if (!parsed.success) return { errors: parsed.error.flatten().fieldErrors };
+
+  const d = parsed.data;
+  const cpfCnpjDigits = d.cpfCnpj.replace(/\D/g, "");
+
+  const existing = await prisma.customer.findUnique({ where: { cpfCnpj: cpfCnpjDigits }, select: { id: true } });
+  if (existing) return { errors: { cpfCnpj: ["CPF/CNPJ já cadastrado no sistema"] } };
+
+  const customer = await prisma.customer.create({
+    data: {
+      type: d.type,
+      fullName: d.fullName,
+      cpfCnpj: cpfCnpjDigits,
+      phone: d.phone.replace(/\D/g, ""),
+      email: d.email || null,
+      street: d.street,
+      number: d.number,
+      complement: d.complement || null,
+      city: d.city,
+      state: d.state.toUpperCase(),
+      zip: d.zip.replace(/\D/g, ""),
+      propertyType: d.propertyType,
+      siteSizeM2: d.siteSizeM2,
+      leadSource: d.leadSource,
+      hadServiceBefore: false,
+    },
+    select: { id: true, fullName: true, cpfCnpj: true, city: true, state: true },
+  });
+
+  return { created: customer };
+}
+
 export async function searchCustomers(query: string) {
   // Verificação de sessão — impede lookup de clientes sem autenticação.
   const session = await auth();

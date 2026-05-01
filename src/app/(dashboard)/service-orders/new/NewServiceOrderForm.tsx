@@ -6,6 +6,7 @@ import { createServiceOrder, searchCustomers } from "./actions";
 import type { NewServiceOrderState } from "./actions";
 import { formatCpfCnpj } from "@/lib/format";
 import { ROLE_LABELS } from "@/lib/labels";
+import { QuickCustomerModal } from "./QuickCustomerModal";
 import type { Role } from "@prisma/client";
 
 const INITIAL_STATE: NewServiceOrderState = {};
@@ -93,6 +94,7 @@ export function NewServiceOrderForm({
   const [showDropdown, setShowDropdown] = useState(false);
   const [isFree, setIsFree] = useState(false);
   const [selectedPests, setSelectedPests] = useState<string[]>([]);
+  const [showModal, setShowModal] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCustomerSearch = useCallback(
@@ -136,9 +138,23 @@ export function NewServiceOrderForm({
     );
   }, []);
 
+  const handleCustomerCreated = useCallback((customer: CustomerOption) => {
+    setSelectedCustomer(customer);
+    setSearchQuery(customer.fullName);
+    setShowDropdown(false);
+    setSearchResults([]);
+  }, []);
+
   const e = state.errors ?? {};
 
   return (
+    <>
+    {showModal && (
+      <QuickCustomerModal
+        onClose={() => setShowModal(false)}
+        onCreated={handleCustomerCreated}
+      />
+    )}
     <form action={formAction} className="space-y-6">
       {state.message && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
@@ -148,7 +164,19 @@ export function NewServiceOrderForm({
 
       {/* Section: Cliente */}
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-        <h2 className="text-base font-semibold text-gray-800 mb-4">Cliente</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-800">Cliente</h2>
+          <button
+            type="button"
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Novo Cliente
+          </button>
+        </div>
 
         <div className="relative">
           <Label htmlFor="customer-search" required>
@@ -413,5 +441,6 @@ export function NewServiceOrderForm({
         </button>
       </div>
     </form>
+    </>
   );
 }
