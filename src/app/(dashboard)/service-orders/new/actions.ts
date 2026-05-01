@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { isValidCpfOrCnpj } from "@/lib/format";
 
 const serviceOrderSchema = z.object({
   customerId: z.string().min(1, "Selecione um cliente"),
@@ -83,8 +84,6 @@ export async function createServiceOrder(
 }
 
 // ── Quick customer creation (used by the inline modal in New OS form) ─────────
-
-import { isValidCpfOrCnpj } from "@/lib/format";
 
 const quickCustomerSchema = z.object({
   type: z.enum(["PERSON", "COMPANY"]),
