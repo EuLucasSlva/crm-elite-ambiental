@@ -4,28 +4,8 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Badge } from "@/components/ui/Badge";
-import { FaturamentoChart, OsChart } from "@/components/charts/DashboardCharts";
+import { FaturamentoChart, OsChart, type PeriodSeries } from "@/components/charts/DashboardCharts";
 import type { Role } from "@prisma/client";
-
-// ---------------------------------------------------------------------------
-// Mock data — used when DB tables are empty
-// ---------------------------------------------------------------------------
-
-const MOCK_VISITS = [
-  { id: "1", customerName: "Restaurante Sabor & Arte", technicianName: "Carlos Mendes", scheduledAt: new Date(Date.now() + 1 * 86400000), daysLeft: 1 },
-  { id: "2", customerName: "Condomínio Jardins", technicianName: "Ana Lima", scheduledAt: new Date(Date.now() + 2 * 86400000), daysLeft: 2 },
-  { id: "3", customerName: "Hotel Beira Mar", technicianName: "Carlos Mendes", scheduledAt: new Date(Date.now() + 4 * 86400000), daysLeft: 4 },
-  { id: "4", customerName: "Escola Municipal Ipê", technicianName: "Pedro Costa", scheduledAt: new Date(Date.now() + 7 * 86400000), daysLeft: 7 },
-  { id: "5", customerName: "Clínica São Lucas", technicianName: "Ana Lima", scheduledAt: new Date(Date.now() + 10 * 86400000), daysLeft: 10 },
-];
-
-const MOCK_WARRANTIES = [
-  { id: "1", customerName: "Supermercado Bom Preço", expiresAt: new Date(Date.now() + 3 * 86400000), daysLeft: 3 },
-  { id: "2", customerName: "Pousada Vista Mar", expiresAt: new Date(Date.now() + 8 * 86400000), daysLeft: 8 },
-  { id: "3", customerName: "Academia Fitness Plus", expiresAt: new Date(Date.now() + 15 * 86400000), daysLeft: 15 },
-  { id: "4", customerName: "Farmácia Saúde Total", expiresAt: new Date(Date.now() + 22 * 86400000), daysLeft: 22 },
-  { id: "5", customerName: "Escritório Contábil MR", expiresAt: new Date(Date.now() + 28 * 86400000), daysLeft: 28 },
-];
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -63,46 +43,108 @@ async function getComparisonStats() {
   const now = new Date();
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
-
   const prevOpenOrders = await prisma.serviceOrder.count({
     where: {
       status: { notIn: ["CLOSED", "CANCELED"] },
       createdAt: { gte: prevMonthStart, lt: prevMonthEnd },
     },
   });
-
   return { prevOpenOrders };
 }
 
-async function getOrdersByMonth(): Promise<{ label: string; count: number }[]> {
+function getMondayOfWeek(now: Date): Date {
+  const d = new Date(now);
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+async function getChartData() {
   const now = new Date();
-  // Build the 6-month window in one query using groupBy
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const monday = getMondayOfWeek(now);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const yearStart = new Date(now.getFullYear(), 0, 1);
 
-  const rows = await prisma.serviceOrder.findMany({
-    where: { createdAt: { gte: sixMonthsAgo } },
-    select: { createdAt: true },
-  });
+  const [paidRows, allYearRows] = await Promise.all([
+    prisma.serviceOrder.findMany({
+      where: { paymentStatus: "PAID", paidAt: { gte: yearStart } },
+      select: { price: true, paidAt: true },
+    }),
+    prisma.serviceOrder.findMany({
+      where: { createdAt: { gte: monthStart } },
+      select: { createdAt: true },
+    }),
+  ]);
 
-  // Build month buckets client-side to avoid 6 round-trips
-  const buckets = new Map<string, number>();
-  const ranges = Array.from({ length: 6 }, (_, i) => {
-    const start = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const label = start.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
-    buckets.set(label, 0);
-    return { start, label };
-  });
+  const weekLabels = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const weekLabelsMonth = ["Sem 1", "Sem 2", "Sem 3", "Sem 4"];
+  const yearLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-  for (const row of rows) {
-    const d = row.createdAt;
-    const label = new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString("pt-BR", {
-      month: "short",
-      year: "2-digit",
-    });
-    if (buckets.has(label)) buckets.set(label, (buckets.get(label) ?? 0) + 1);
+  // Revenue
+  const revWeek = [0, 0, 0, 0, 0, 0];
+  const revMonth = [0, 0, 0, 0];
+  const revYear = Array(12).fill(0);
+
+  for (const row of paidRows) {
+    if (!row.paidAt) continue;
+    const val = row.price ?? 0;
+    // yearly
+    revYear[row.paidAt.getMonth()] += val;
+    // monthly (current month only)
+    if (row.paidAt >= monthStart) {
+      revMonth[Math.min(Math.floor((row.paidAt.getDate() - 1) / 7), 3)] += val;
+    }
+    // weekly (current week only)
+    if (row.paidAt >= monday) {
+      const day = row.paidAt.getDay();
+      const idx = day === 0 ? 6 : day - 1;
+      if (idx < 6) revWeek[idx] += val;
+    }
   }
 
-  return ranges.map(({ label }) => ({ label, count: buckets.get(label) ?? 0 }));
+  // OS counts
+  const osWeek = [0, 0, 0, 0, 0, 0];
+  const osMonth = [0, 0, 0, 0];
+
+  for (const row of allYearRows) {
+    // monthly buckets
+    osMonth[Math.min(Math.floor((row.createdAt.getDate() - 1) / 7), 3)]++;
+    // weekly buckets (only from monday)
+    if (row.createdAt >= monday) {
+      const day = row.createdAt.getDay();
+      const idx = day === 0 ? 6 : day - 1;
+      if (idx < 6) osWeek[idx]++;
+    }
+  }
+
+  // OS by month for "ano" view (all 12 months of current year)
+  const osYear = Array(12).fill(0);
+  for (const row of allYearRows) {
+    osYear[row.createdAt.getMonth()]++;
+  }
+  // also need OS from full year start — allYearRows only goes from monthStart, re-fetch needed
+  const allOsYear = await prisma.serviceOrder.findMany({
+    where: { createdAt: { gte: yearStart } },
+    select: { createdAt: true },
+  });
+  const osYearFull = Array(12).fill(0);
+  for (const row of allOsYear) {
+    osYearFull[row.createdAt.getMonth()]++;
+  }
+
+  return {
+    revenue: {
+      semana: { labels: weekLabels, data: revWeek } as PeriodSeries,
+      mes: { labels: weekLabelsMonth, data: revMonth } as PeriodSeries,
+      ano: { labels: yearLabels, data: revYear } as PeriodSeries,
+    },
+    os: {
+      semana: { labels: weekLabels, data: osWeek } as PeriodSeries,
+      mes: { labels: weekLabelsMonth, data: osMonth } as PeriodSeries,
+      ano: { labels: yearLabels, data: osYearFull } as PeriodSeries,
+    },
+  };
 }
 
 async function getUpcomingVisits() {
@@ -136,30 +178,45 @@ async function getExpiringWarranties() {
 // Page
 // ---------------------------------------------------------------------------
 
+const EMPTY_SERIES: PeriodSeries = { labels: [], data: [] };
+const WEEK_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+const WEEK_MONTHS = ["Sem 1", "Sem 2", "Sem 3", "Sem 4"];
+const YEAR_LABELS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+const EMPTY_CHART = {
+  revenue: {
+    semana: { labels: WEEK_LABELS, data: [0, 0, 0, 0, 0, 0] } as PeriodSeries,
+    mes: { labels: WEEK_MONTHS, data: [0, 0, 0, 0] } as PeriodSeries,
+    ano: { labels: YEAR_LABELS, data: Array(12).fill(0) } as PeriodSeries,
+  },
+  os: {
+    semana: { labels: WEEK_LABELS, data: [0, 0, 0, 0, 0, 0] } as PeriodSeries,
+    mes: { labels: WEEK_MONTHS, data: [0, 0, 0, 0] } as PeriodSeries,
+    ano: { labels: YEAR_LABELS, data: Array(12).fill(0) } as PeriodSeries,
+  },
+};
+
 export default async function DashboardPage() {
-  // auth() is already called in the layout — NextAuth caches the session
-  // within the same request via its internal cache, so this adds minimal
-  // overhead. We still call it here to access user data in the Server Component.
   const session = await auth();
   const role = session?.user?.role as Role;
   const isPrivileged = role === "ADMIN" || role === "MANAGER";
 
   let stats = { openOrders: 0, todayVisits: 0, expiringWarranties: 0, lowStockItems: 0 };
   let prevStats = { prevOpenOrders: 0 };
-  let ordersByMonth: { label: string; count: number }[] = [];
+  let chartData = EMPTY_CHART;
   let upcomingVisitsRaw: Awaited<ReturnType<typeof getUpcomingVisits>> = [];
   let expiringWarrantiesRaw: Awaited<ReturnType<typeof getExpiringWarranties>> = [];
 
   try {
-    [stats, prevStats, ordersByMonth, upcomingVisitsRaw, expiringWarrantiesRaw] = await Promise.all([
+    [stats, prevStats, chartData, upcomingVisitsRaw, expiringWarrantiesRaw] = await Promise.all([
       getDashboardStats(),
       getComparisonStats(),
-      getOrdersByMonth(),
+      getChartData(),
       getUpcomingVisits(),
       getExpiringWarranties(),
     ]);
   } catch {
-    // DB not connected — show zeros and mock data
+    // DB not connected — show zeros
   }
 
   const now = new Date();
@@ -171,33 +228,27 @@ export default async function DashboardPage() {
   });
 
   type VisitRow = { id: string; customerName: string; technicianName: string; scheduledAt: Date; daysLeft: number };
-  const visitsToShow: VisitRow[] =
-    upcomingVisitsRaw.length > 0
-      ? upcomingVisitsRaw.map((v) => {
-          const msLeft = v.scheduledAt.getTime() - now.getTime();
-          return {
-            id: v.id,
-            customerName: v.serviceOrder?.customer?.fullName ?? "—",
-            technicianName: v.technician?.name ?? "—",
-            scheduledAt: v.scheduledAt,
-            daysLeft: Math.ceil(msLeft / (1000 * 60 * 60 * 24)),
-          };
-        })
-      : MOCK_VISITS;
+  const visitsToShow: VisitRow[] = upcomingVisitsRaw.map((v) => {
+    const msLeft = v.scheduledAt.getTime() - now.getTime();
+    return {
+      id: v.id,
+      customerName: v.serviceOrder?.customer?.fullName ?? "—",
+      technicianName: v.technician?.name ?? "—",
+      scheduledAt: v.scheduledAt,
+      daysLeft: Math.ceil(msLeft / (1000 * 60 * 60 * 24)),
+    };
+  });
 
   type WarrantyRow = { id: string; customerName: string; expiresAt: Date; daysLeft: number };
-  const warrantiesToShow: WarrantyRow[] =
-    expiringWarrantiesRaw.length > 0
-      ? expiringWarrantiesRaw.map((w) => {
-          const msLeft = w.expiresAt.getTime() - now.getTime();
-          return {
-            id: w.id,
-            customerName: w.serviceOrder?.customer?.fullName ?? "—",
-            expiresAt: w.expiresAt,
-            daysLeft: Math.ceil(msLeft / (1000 * 60 * 60 * 24)),
-          };
-        })
-      : MOCK_WARRANTIES;
+  const warrantiesToShow: WarrantyRow[] = expiringWarrantiesRaw.map((w) => {
+    const msLeft = w.expiresAt.getTime() - now.getTime();
+    return {
+      id: w.id,
+      customerName: w.serviceOrder?.customer?.fullName ?? "—",
+      expiresAt: w.expiresAt,
+      daysLeft: Math.ceil(msLeft / (1000 * 60 * 60 * 24)),
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -238,68 +289,88 @@ export default async function DashboardPage() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <FaturamentoChart />
-        <OsChart monthlyData={ordersByMonth} />
+        <FaturamentoChart
+          semana={chartData.revenue.semana}
+          mes={chartData.revenue.mes}
+          ano={chartData.revenue.ano}
+        />
+        <OsChart
+          semana={chartData.os.semana}
+          mes={chartData.os.mes}
+          ano={chartData.os.ano}
+        />
       </div>
 
       {/* Tables row */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <SectionCard title="Próximos Agendamentos">
-          <div className="table-scroll">
-            <table className="table-hover w-full text-sm">
-              <thead>
-                <tr>
-                  {["Cliente", "Data", "Técnico", ""].map((h) => (
-                    <th key={h} className="text-left pb-3 text-xs font-bold uppercase tracking-wide border-b"
-                      style={{ color: "var(--text-muted)", borderColor: "#d0d5e8" }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visitsToShow.map((v) => (
-                  <tr key={v.id} className="border-b last:border-0" style={{ borderColor: "#dde1ed" }}>
-                    <td className="py-2.5 pr-3 font-medium" style={{ color: "var(--text)" }}>{v.customerName}</td>
-                    <td className="py-2.5 pr-3 text-xs" style={{ color: "var(--text-muted)" }}>{formatDateTime(v.scheduledAt)}</td>
-                    <td className="py-2.5 pr-3 text-xs" style={{ color: "var(--text-muted)" }}>{v.technicianName}</td>
-                    <td className="py-2.5">
-                      <Badge variant={v.daysLeft <= 1 ? "red" : v.daysLeft <= 3 ? "yellow" : "blue"}
-                        label={v.daysLeft === 0 ? "Hoje" : `${v.daysLeft}d`} />
-                    </td>
+          {visitsToShow.length === 0 ? (
+            <p className="text-sm py-6 text-center" style={{ color: "var(--text-muted)" }}>
+              Nenhuma visita agendada.
+            </p>
+          ) : (
+            <div className="table-scroll">
+              <table className="table-hover w-full text-sm">
+                <thead>
+                  <tr>
+                    {["Cliente", "Data", "Técnico", ""].map((h) => (
+                      <th key={h} className="text-left pb-3 text-xs font-bold uppercase tracking-wide border-b"
+                        style={{ color: "var(--text-muted)", borderColor: "#d0d5e8" }}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {visitsToShow.map((v) => (
+                    <tr key={v.id} className="border-b last:border-0" style={{ borderColor: "#dde1ed" }}>
+                      <td className="py-2.5 pr-3 font-medium" style={{ color: "var(--text)" }}>{v.customerName}</td>
+                      <td className="py-2.5 pr-3 text-xs" style={{ color: "var(--text-muted)" }}>{formatDateTime(v.scheduledAt)}</td>
+                      <td className="py-2.5 pr-3 text-xs" style={{ color: "var(--text-muted)" }}>{v.technicianName}</td>
+                      <td className="py-2.5">
+                        <Badge variant={v.daysLeft <= 1 ? "red" : v.daysLeft <= 3 ? "yellow" : "blue"}
+                          label={v.daysLeft === 0 ? "Hoje" : `${v.daysLeft}d`} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </SectionCard>
 
         <SectionCard title="Garantias Vencendo em Breve">
-          <div className="table-scroll">
-            <table className="table-hover w-full text-sm">
-              <thead>
-                <tr>
-                  {["Cliente", "Vencimento", ""].map((h) => (
-                    <th key={h} className="text-left pb-3 text-xs font-bold uppercase tracking-wide border-b"
-                      style={{ color: "var(--text-muted)", borderColor: "#d0d5e8" }}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {warrantiesToShow.map((w) => (
-                  <tr key={w.id} className="border-b last:border-0" style={{ borderColor: "#dde1ed" }}>
-                    <td className="py-2.5 pr-3 font-medium" style={{ color: "var(--text)" }}>{w.customerName}</td>
-                    <td className="py-2.5 pr-3 text-xs" style={{ color: "var(--text-muted)" }}>{formatDate(w.expiresAt)}</td>
-                    <td className="py-2.5">
-                      <Badge variant={w.daysLeft <= 7 ? "red" : "yellow"} label={`${w.daysLeft}d`} />
-                    </td>
+          {warrantiesToShow.length === 0 ? (
+            <p className="text-sm py-6 text-center" style={{ color: "var(--text-muted)" }}>
+              Nenhuma garantia vencendo em 30 dias.
+            </p>
+          ) : (
+            <div className="table-scroll">
+              <table className="table-hover w-full text-sm">
+                <thead>
+                  <tr>
+                    {["Cliente", "Vencimento", ""].map((h) => (
+                      <th key={h} className="text-left pb-3 text-xs font-bold uppercase tracking-wide border-b"
+                        style={{ color: "var(--text-muted)", borderColor: "#d0d5e8" }}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {warrantiesToShow.map((w) => (
+                    <tr key={w.id} className="border-b last:border-0" style={{ borderColor: "#dde1ed" }}>
+                      <td className="py-2.5 pr-3 font-medium" style={{ color: "var(--text)" }}>{w.customerName}</td>
+                      <td className="py-2.5 pr-3 text-xs" style={{ color: "var(--text-muted)" }}>{formatDate(w.expiresAt)}</td>
+                      <td className="py-2.5">
+                        <Badge variant={w.daysLeft <= 7 ? "red" : "yellow"} label={`${w.daysLeft}d`} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </SectionCard>
       </div>
     </div>

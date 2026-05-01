@@ -13,72 +13,24 @@ const PERIOD_LABELS: Record<Period, string> = {
   ano: "Este ano",
 };
 
-// Subtle dot colors per period for the selector indicator
 const PERIOD_DOT: Record<Period, string> = {
   semana: "#10b981",
   mes: "#0ea5e9",
   ano: "#f59e0b",
 };
 
-// Faturamento mock data — realistic values for a Brazilian pest control business (BRL)
-const FAT_MOCK: Record<Period, { labels: string[]; data: number[] }> = {
-  semana: {
-    labels: ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
-    data: [1200, 2800, 1950, 3200, 2100, 1400],
-  },
-  mes: {
-    labels: ["Sem 1", "Sem 2", "Sem 3", "Sem 4"],
-    data: [8400, 11200, 9800, 13600],
-  },
-  ano: {
-    labels: ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"],
-    data: [9200, 8100, 11400, 10800, 13200, 12500, 14800, 13100, 15600, 16200, 14900, 17800],
-  },
-};
-
-// Meta (target) values per period for the Faturamento chart (dashed amber line)
-const FAT_META: Record<Period, number[]> = {
-  semana: [2000, 2000, 2000, 2000, 2000, 2000],      // R$ 12.000 / semana ÷ 6 dias
-  mes: [11250, 11250, 11250, 11250],                   // R$ 45.000 / mes ÷ 4 semanas
-  ano: [11667, 11667, 11667, 11667, 11667, 11667, 11667, 11667, 11667, 11667, 11667, 11667], // R$ 140.000 ÷ 12
-};
-
-// OS (service orders) mock data
-const OS_STATIC: Record<"semana" | "mes", { labels: string[]; data: number[] }> = {
-  semana: {
-    labels: ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"],
-    data: [2, 5, 3, 7, 4, 2],
-  },
-  mes: {
-    labels: ["Sem 1", "Sem 2", "Sem 3", "Sem 4"],
-    data: [11, 14, 9, 16],
-  },
-};
-
-// Meta (target) values per period for the OS chart
-const OS_META: Record<Period, number | null> = {
-  semana: 5,   // 5 per day
-  mes: 15,     // 15 per week
-  ano: 12,     // 12 per month
-};
-
-// Responsive chart height
 const CHART_HEIGHT = "min(270px, 40vw)";
 
-// ─── Helper: abbreviate BRL values for data labels ───────────────
 function fmtBrl(v: number): string {
   if (v >= 1000) return `R$${(v / 1000).toFixed(1)}k`;
   return `R$${v}`;
 }
 
-// ─── Inline datalabels plugin ────────────────────────────────────
-// Only labels the first dataset (real data); skips the meta line.
 const datalabelsPlugin = {
   id: "inlineDatalabels",
   afterDatasetsDraw(chart: Chart) {
     const { ctx } = chart;
     chart.data.datasets.forEach((dataset, datasetIndex) => {
-      // Only draw labels for dataset index 0 (real data)
       if (datasetIndex !== 0) return;
       const meta = chart.getDatasetMeta(datasetIndex);
       if (!meta || meta.hidden) return;
@@ -92,10 +44,10 @@ const datalabelsPlugin = {
         const raw = dataset.data[index];
         if (raw == null) return;
         const value = Number(raw);
+        if (value === 0) return;
         const isBar = (chart.config as { type?: string }).type === "bar";
         const label = isBar ? fmtBrl(value) : String(value);
 
-        // For bars: match label color to bar color
         let fillStyle = isBar ? "#1e4d8c" : "#059669";
         if (isBar) {
           const metaDataset = chart.data.datasets[1];
@@ -104,9 +56,7 @@ const datalabelsPlugin = {
         }
 
         ctx.fillStyle = fillStyle;
-        const x = element.x;
-        const y = element.y - 6;
-        ctx.fillText(label, x, y);
+        ctx.fillText(label, element.x, element.y - 6);
       });
 
       ctx.restore();
@@ -114,11 +64,33 @@ const datalabelsPlugin = {
   },
 };
 
-// ─── FaturamentoChart ────────────────────────────────────────────
-export function FaturamentoChart() {
+// ── Types ─────────────────────────────────────────────────────────
+
+export interface PeriodSeries {
+  labels: string[];
+  data: number[];
+}
+
+export interface FaturamentoChartProps {
+  semana: PeriodSeries;
+  mes: PeriodSeries;
+  ano: PeriodSeries;
+}
+
+export interface OsChartProps {
+  semana: PeriodSeries;
+  mes: PeriodSeries;
+  ano: PeriodSeries;
+}
+
+// ── FaturamentoChart ──────────────────────────────────────────────
+
+export function FaturamentoChart({ semana, mes, ano }: FaturamentoChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
   const [period, setPeriod] = useState<Period>("semana");
+
+  const seriesMap: Record<Period, PeriodSeries> = { semana, mes, ano };
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -126,16 +98,12 @@ export function FaturamentoChart() {
     if (!ctx) return;
 
     chartRef.current?.destroy();
-    const d = FAT_MOCK[period];
-    const metaData = FAT_META[period];
+    const d = seriesMap[period];
+    const avg = d.data.length > 0 ? d.data.reduce((a, b) => a + b, 0) / d.data.length : 0;
+    const metaData = d.labels.map(() => avg);
 
-    // Bar color: deep coral/orange if below meta, deep navy-blue otherwise
-    const barColors = d.data.map((v, i) =>
-      v < metaData[i] ? "#e05c3a" : "#1e4d8c"
-    );
-    const barHoverColors = d.data.map((v, i) =>
-      v < metaData[i] ? "#c44a2a" : "#163a6b"
-    );
+    const barColors = d.data.map((v) => (v < avg && avg > 0 ? "#e05c3a" : "#1e4d8c"));
+    const barHoverColors = d.data.map((v) => (v < avg && avg > 0 ? "#c44a2a" : "#163a6b"));
 
     chartRef.current = new Chart(ctx, {
       type: "bar",
@@ -153,8 +121,8 @@ export function FaturamentoChart() {
             order: 2,
           },
           {
-            label: "Meta",
-            data: metaData,
+            label: "Média",
+            data: avg > 0 ? metaData : [],
             type: "line" as const,
             borderColor: "#f59e0b",
             borderWidth: 2,
@@ -173,7 +141,7 @@ export function FaturamentoChart() {
         layout: { padding: { top: 20 } },
         plugins: {
           legend: {
-            display: true,
+            display: avg > 0,
             position: "top",
             align: "end",
             labels: {
@@ -189,7 +157,7 @@ export function FaturamentoChart() {
               label: (ctx) => {
                 const v = Number(ctx.raw);
                 if (ctx.datasetIndex === 0) return ` R$ ${v.toLocaleString("pt-BR")}`;
-                return ` Meta: R$ ${v.toLocaleString("pt-BR")}`;
+                return ` Média: R$ ${v.toLocaleString("pt-BR")}`;
               },
             },
           },
@@ -211,7 +179,8 @@ export function FaturamentoChart() {
       },
     });
     return () => chartRef.current?.destroy();
-  }, [period]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, semana, mes, ano]);
 
   return (
     <ChartCard title="Faturamento por Período" period={period} onPeriod={setPeriod}>
@@ -222,31 +191,23 @@ export function FaturamentoChart() {
   );
 }
 
-// ─── OsChart ─────────────────────────────────────────────────────
-export function OsChart({ monthlyData }: { monthlyData: { label: string; count: number }[] }) {
+// ── OsChart ───────────────────────────────────────────────────────
+
+export function OsChart({ semana, mes, ano }: OsChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<Chart | null>(null);
   const [period, setPeriod] = useState<Period>("ano");
+
+  const seriesMap: Record<Period, PeriodSeries> = { semana, mes, ano };
 
   useEffect(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
 
-    let d: { labels: string[]; data: number[] };
-    if (period === "ano") {
-      d = {
-        labels: monthlyData.map((item) => item.label),
-        data: monthlyData.map((item) => item.count),
-      };
-    } else {
-      d = OS_STATIC[period];
-    }
-
-    const metaValue = OS_META[period];
-    const metaData = metaValue !== null ? d.labels.map(() => metaValue) : [];
-
     chartRef.current?.destroy();
+    const d = seriesMap[period];
+
     chartRef.current = new Chart(ctx, {
       type: "line",
       plugins: [datalabelsPlugin],
@@ -266,19 +227,6 @@ export function OsChart({ monthlyData }: { monthlyData: { label: string; count: 
             pointBorderWidth: 2,
             pointRadius: 5,
             pointHoverRadius: 7,
-            order: 2,
-          },
-          {
-            label: "Meta",
-            data: metaData,
-            borderColor: "#f59e0b",
-            borderWidth: 2,
-            borderDash: [6, 4],
-            pointRadius: 0,
-            pointHoverRadius: 0,
-            fill: false,
-            tension: 0,
-            order: 1,
           },
         ],
       },
@@ -301,10 +249,7 @@ export function OsChart({ monthlyData }: { monthlyData: { label: string; count: 
           },
           tooltip: {
             callbacks: {
-              label: (ctx) => {
-                if (ctx.datasetIndex === 0) return ` ${Number(ctx.raw)} OS`;
-                return ` Meta: ${Number(ctx.raw)} OS`;
-              },
+              label: (ctx) => ` ${Number(ctx.raw)} OS`,
             },
           },
         },
@@ -321,7 +266,8 @@ export function OsChart({ monthlyData }: { monthlyData: { label: string; count: 
       },
     });
     return () => chartRef.current?.destroy();
-  }, [period, monthlyData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, semana, mes, ano]);
 
   return (
     <ChartCard title="OS Atendidas" period={period} onPeriod={setPeriod}>
@@ -332,7 +278,8 @@ export function OsChart({ monthlyData }: { monthlyData: { label: string; count: 
   );
 }
 
-// ─── ChartCard wrapper ────────────────────────────────────────────
+// ── ChartCard wrapper ─────────────────────────────────────────────
+
 function ChartCard({
   title,
   period,
