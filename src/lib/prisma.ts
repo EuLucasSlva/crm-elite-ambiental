@@ -1,12 +1,27 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
 
 function createPrismaClient() {
-  const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL!,
+  const rawUrl = process.env.DATABASE_URL ?? "";
+
+  // Strip Prisma-only params that the pg library does not understand
+  const cleanUrl = rawUrl
+    .replace(/[?&]pgbouncer=[^&]*/g, "")
+    .replace(/[?&]connection_limit=[^&]*/g, "")
+    .replace(/\?&/, "?")
+    .replace(/[?&]$/, "");
+
+  const pool = new Pool({
+    connectionString: cleanUrl,
+    max: 2,
+    idleTimeoutMillis: 20000,
+    connectionTimeoutMillis: 8000,
   });
+
+  const adapter = new PrismaPg(pool);
   return new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
