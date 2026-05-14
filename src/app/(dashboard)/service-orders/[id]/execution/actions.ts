@@ -134,13 +134,13 @@ export async function finalizeExecution(
     }
   }
 
+  // Group by stock item id and fetch unit costs
+  const stockItemData = new Map<string, { total: number; name: string; unitCost: number }>();
+
   if (stockChecks.length > 0) {
-    // Group by stock item id
     const grouped = stockChecks.reduce<Record<string, { total: number; name: string }>>(
       (acc, check) => {
-        if (!acc[check.itemId]) {
-          acc[check.itemId] = { total: 0, name: check.name };
-        }
+        if (!acc[check.itemId]) acc[check.itemId] = { total: 0, name: check.name };
         acc[check.itemId].total += check.dose;
         return acc;
       },
@@ -150,12 +150,10 @@ export async function finalizeExecution(
     for (const [itemId, { total, name }] of Object.entries(grouped)) {
       const item = await prisma.stockItem.findUnique({
         where: { id: itemId },
-        select: { quantity: true, expiryDate: true },
+        select: { quantity: true, expiryDate: true, unitCost: true },
       });
 
-      if (!item) {
-        return { error: `Produto "${name}" não encontrado no estoque.` };
-      }
+      if (!item) return { error: `Produto "${name}" não encontrado no estoque.` };
 
       if (item.expiryDate && item.expiryDate < now) {
         return { error: `Produto "${name}" está vencido e não pode ser utilizado.` };
@@ -166,6 +164,17 @@ export async function finalizeExecution(
           error: `Estoque insuficiente para "${name}". Disponível: ${item.quantity}, Necessário: ${total}.`,
         };
       }
+
+      stockItemData.set(itemId, { total, name, unitCost: item.unitCost });
+    }
+  }
+
+  // Compute total OS cost from insumos
+  let totalCost = 0;
+  for (const point of points) {
+    if (point.stockItemId) {
+      const data = stockItemData.get(point.stockItemId);
+      if (data) totalCost += point.doseApplied * data.unitCost;
     }
   }
 
@@ -187,6 +196,7 @@ export async function finalizeExecution(
             productName: p.productName,
             doseApplied: p.doseApplied,
             unit: p.unit,
+            stockItemId: p.stockItemId ?? null,
           })),
         },
       },
@@ -195,6 +205,7 @@ export async function finalizeExecution(
     // 2. Create stock movements for items with stockItemId
     for (const point of points) {
       if (point.stockItemId) {
+        const unitCost = stockItemData.get(point.stockItemId)?.unitCost ?? 0;
         await tx.stockMovement.create({
           data: {
             stockItemId: point.stockItemId,
@@ -202,6 +213,7 @@ export async function finalizeExecution(
             visitId: visit.id,
             applicationPoint: point.location,
             delta: -point.doseApplied,
+            unitCostSnapshot: unitCost,
             reason: `Uso em OS — ${point.location}`,
             performedById: session.user.id,
           },
@@ -214,12 +226,13 @@ export async function finalizeExecution(
       }
     }
 
-    // 3. Update service order status
+    // 3. Update service order status + cost
     await tx.serviceOrder.update({
       where: { id: serviceOrderId },
       data: {
         status: "SERVICE_EXECUTED",
         executedAt: now,
+        ...(totalCost > 0 ? { cost: totalCost } : {}),
       },
     });
   });

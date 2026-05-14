@@ -30,30 +30,12 @@ async function getFinancialReport() {
 
   // ── Aggregated totals ──────────────────────────────────────────────────────
   const [
-    thisMonthPaid,
-    lastMonthPaid,
-    yearPaid,
     pendingAgg,
     overdueAgg,
     totalOrders,
     expensesThisMonth,
     expensesYear,
   ] = await Promise.all([
-    prisma.serviceOrder.aggregate({
-      where: { paymentStatus: "PAID", paidAt: { gte: monthStart } },
-      _sum: { price: true, cost: true },
-      _count: true,
-    }),
-    prisma.serviceOrder.aggregate({
-      where: { paymentStatus: "PAID", paidAt: { gte: prevMonthStart, lt: prevMonthEnd } },
-      _sum: { price: true, cost: true },
-      _count: true,
-    }),
-    prisma.serviceOrder.aggregate({
-      where: { paymentStatus: "PAID", paidAt: { gte: yearStart } },
-      _sum: { price: true, cost: true },
-      _count: true,
-    }),
     prisma.serviceOrder.aggregate({
       where: { paymentStatus: "PENDING", isFree: false },
       _sum: { price: true },
@@ -77,35 +59,84 @@ async function getFinancialReport() {
     }),
   ]);
 
-  // ── Monthly series + by-technician + by-type — single query ──────────────
-  // Fetch all paid OS in the 6-month window with enough fields to derive every
-  // breakdown. This replaces 8 round-trips (6 aggregates + 2 findMany) with 1.
+  // ── Revenue from paid installments (parcelado) ─────────────────────────────
+  // Installments represent revenue recognized per due date
   const ranges = Array.from({ length: 6 }, (_, i) => getMonthRange(5 - i));
   const sixMonthsAgo = ranges[0].start;
 
-  const paidInWindow = await prisma.serviceOrder.findMany({
-    where: { paymentStatus: "PAID", paidAt: { gte: sixMonthsAgo } },
-    select: {
-      price: true,
-      cost: true,
-      paidAt: true,
-      serviceType: true,
-      technician: { select: { name: true } },
-    },
-  });
+  const [paidInstallments, paidAvistaInWindow] = await Promise.all([
+    // Installments paid in the 6-month window
+    prisma.installment.findMany({
+      where: { status: "PAID", paidAt: { gte: sixMonthsAgo } },
+      select: {
+        amount: true,
+        paidAt: true,
+        serviceOrder: {
+          select: {
+            cost: true,
+            serviceType: true,
+            installmentCount: true,
+            technician: { select: { name: true } },
+          },
+        },
+      },
+    }),
+    // À vista OS paid in the 6-month window (no installments)
+    prisma.serviceOrder.findMany({
+      where: {
+        paymentStatus: "PAID",
+        paidAt: { gte: sixMonthsAgo },
+        installmentCount: null,
+      },
+      select: {
+        price: true,
+        cost: true,
+        paidAt: true,
+        serviceType: true,
+        technician: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  // Build unified revenue rows: { revenue, cost, date, serviceType, techName }
+  type RevenueRow = { revenue: number; cost: number; date: Date; serviceType: string; techName: string };
+  const revenueRows: RevenueRow[] = [];
+
+  for (const inst of paidInstallments) {
+    if (!inst.paidAt) continue;
+    const count = inst.serviceOrder.installmentCount ?? 1;
+    const costShare = (inst.serviceOrder.cost ?? 0) / count;
+    revenueRows.push({
+      revenue: inst.amount,
+      cost: costShare,
+      date: inst.paidAt,
+      serviceType: inst.serviceOrder.serviceType,
+      techName: inst.serviceOrder.technician?.name ?? "Sem técnico",
+    });
+  }
+
+  for (const os of paidAvistaInWindow) {
+    if (!os.paidAt) continue;
+    revenueRows.push({
+      revenue: os.price ?? 0,
+      cost: os.cost ?? 0,
+      date: os.paidAt,
+      serviceType: os.serviceType,
+      techName: os.technician?.name ?? "Sem técnico",
+    });
+  }
 
   // -- Monthly series --
   const monthBuckets = new Map<string, { revenue: number; cost: number; count: number }>();
   for (const { label } of ranges) monthBuckets.set(label, { revenue: 0, cost: 0, count: 0 });
 
-  for (const row of paidInWindow) {
-    if (!row.paidAt) continue;
-    const label = new Date(row.paidAt.getFullYear(), row.paidAt.getMonth(), 1)
+  for (const row of revenueRows) {
+    const label = new Date(row.date.getFullYear(), row.date.getMonth(), 1)
       .toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
     const bucket = monthBuckets.get(label);
     if (!bucket) continue;
-    bucket.revenue += row.price ?? 0;
-    bucket.cost += row.cost ?? 0;
+    bucket.revenue += row.revenue;
+    bucket.cost += row.cost;
     bucket.count += 1;
   }
 
@@ -114,37 +145,32 @@ async function getFinancialReport() {
     return { label, ...b, profit: b.revenue - b.cost };
   });
 
-  // -- By technician (filter to current month in JS) --
-  const thisMonthPaidRows = paidInWindow.filter(
-    (r) => r.paidAt && r.paidAt >= monthStart
-  );
+  // -- This month / last month / year aggregates from revenueRows --
+  const thisMonthRows = revenueRows.filter((r) => r.date >= monthStart);
+  const lastMonthRows = revenueRows.filter((r) => r.date >= prevMonthStart && r.date < prevMonthEnd);
+  const yearRows = revenueRows.filter((r) => r.date >= yearStart);
 
+  const sumRows = (rows: RevenueRow[]) =>
+    rows.reduce((acc, r) => ({ revenue: acc.revenue + r.revenue, cost: acc.cost + r.cost, count: acc.count + 1 }), { revenue: 0, cost: 0, count: 0 });
+
+  const thisMonthAgg = sumRows(thisMonthRows);
+  const yearAgg = sumRows(yearRows);
+
+  // -- By technician (this month) --
   const techMap = new Map<string, { revenue: number; cost: number; count: number }>();
-  for (const o of thisMonthPaidRows) {
-    const name = o.technician?.name ?? "Sem técnico";
-    const cur = techMap.get(name) ?? { revenue: 0, cost: 0, count: 0 };
-    techMap.set(name, {
-      revenue: cur.revenue + (o.price ?? 0),
-      cost: cur.cost + (o.cost ?? 0),
-      count: cur.count + 1,
-    });
+  for (const r of thisMonthRows) {
+    const cur = techMap.get(r.techName) ?? { revenue: 0, cost: 0, count: 0 };
+    techMap.set(r.techName, { revenue: cur.revenue + r.revenue, cost: cur.cost + r.cost, count: cur.count + 1 });
   }
   const byTechnician = Array.from(techMap.entries())
     .map(([name, d]) => ({ name, ...d, profit: d.revenue - d.cost }))
     .sort((a, b) => b.revenue - a.revenue);
 
-  // Re-use the already-filtered slice for the by-type breakdown
-  const byTypeRaw = thisMonthPaidRows;
-
+  // -- By service type (this month) --
   const typeMap = new Map<string, { revenue: number; cost: number; count: number }>();
-  for (const o of byTypeRaw) {
-    const key = o.serviceType;
-    const cur = typeMap.get(key) ?? { revenue: 0, cost: 0, count: 0 };
-    typeMap.set(key, {
-      revenue: cur.revenue + (o.price ?? 0),
-      cost: cur.cost + (o.cost ?? 0),
-      count: cur.count + 1,
-    });
+  for (const r of thisMonthRows) {
+    const cur = typeMap.get(r.serviceType) ?? { revenue: 0, cost: 0, count: 0 };
+    typeMap.set(r.serviceType, { revenue: cur.revenue + r.revenue, cost: cur.cost + r.cost, count: cur.count + 1 });
   }
   const byServiceType = Array.from(typeMap.entries())
     .map(([type, d]) => ({ type, ...d, profit: d.revenue - d.cost }))
@@ -161,22 +187,23 @@ async function getFinancialReport() {
       cost: true,
       paidAt: true,
       serviceType: true,
+      installmentCount: true,
       customer: { select: { fullName: true } },
       technician: { select: { name: true } },
     },
   });
 
   // ── Computed summary ──────────────────────────────────────────────────────
-  const revenueThis = thisMonthPaid._sum.price ?? 0;
-  const costThis = thisMonthPaid._sum.cost ?? 0;
+  const revenueThis = thisMonthAgg.revenue;
+  const costThis = thisMonthAgg.cost;
   const profitThis = revenueThis - costThis;
   const marginThis = revenueThis > 0 ? (profitThis / revenueThis) * 100 : 0;
 
-  const revenueYear = yearPaid._sum.price ?? 0;
-  const costYear = yearPaid._sum.cost ?? 0;
+  const revenueYear = yearAgg.revenue;
+  const costYear = yearAgg.cost;
   const profitYear = revenueYear - costYear;
 
-  const ticketAvg = thisMonthPaid._count > 0 ? revenueThis / thisMonthPaid._count : 0;
+  const ticketAvg = thisMonthAgg.count > 0 ? revenueThis / thisMonthAgg.count : 0;
 
   const expenseThis = expensesThisMonth._sum.amount ?? 0;
   const expenseYear = expensesYear._sum.amount ?? 0;

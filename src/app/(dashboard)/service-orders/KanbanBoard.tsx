@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useTransition } from "react";
 import Link from "next/link";
 import { STATUS_LABELS, SERVICE_TYPE_LABELS } from "@/lib/labels";
 import { shortId, formatDate } from "@/lib/format";
+import { moveKanbanCard } from "./[id]/actions";
 import type { ServiceOrderStatus, ServiceType } from "@prisma/client";
 
 export type KanbanOrder = {
@@ -34,6 +35,16 @@ const COLUMNS: KanbanColumn[] = [
   { key: "encerrado", label: "Encerrado", statuses: ["WARRANTY_ACTIVE", "CLOSED", "CANCELED"],                 accentColor: "#9ca3af", headerBg: "#9ca3af", headerText: "#fff" },
 ];
 
+// Representative status to use when moving a card to each column
+const COLUMN_TARGET_STATUS: Record<string, ServiceOrderStatus> = {
+  lead:      "LEAD_CAPTURED",
+  inspecao:  "INSPECTION_SCHEDULED",
+  orcamento: "QUOTE_CREATED",
+  agendado:  "SERVICE_SCHEDULED",
+  executado: "SERVICE_EXECUTED",
+  encerrado: "CLOSED",
+};
+
 function getColKey(status: ServiceOrderStatus): string {
   return COLUMNS.find((c) => c.statuses.includes(status))?.key ?? "lead";
 }
@@ -53,6 +64,7 @@ interface KanbanBoardProps {
 export function KanbanBoard({ orders }: KanbanBoardProps) {
   const orderMap = Object.fromEntries(orders.map((o) => [o.id, o]));
   const [cols, setCols] = useState<Record<string, string[]>>(() => buildInitialCols(orders));
+  const [, startTransition] = useTransition();
 
   // drag state — plain refs, no re-renders needed during drag
   const dragId = useRef<string | null>(null);
@@ -132,11 +144,12 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
 
     const afterId = afterEl?.dataset.cardId ?? null;
 
+    // Optimistic update — snapshot for rollback
+    const snapshot = { ...cols, [fromCol]: [...cols[fromCol]], [toColKey]: [...cols[toColKey]] };
+
     setCols((prev) => {
       const next = { ...prev };
-      // remove from source
       next[fromCol] = next[fromCol].filter((i) => i !== id);
-      // insert into target
       const target = [...next[toColKey].filter((i) => i !== id)];
       const afterIdx = afterId ? target.indexOf(afterId) : -1;
       if (afterIdx === -1) target.push(id);
@@ -149,6 +162,20 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
     setOverCol(null);
     dragId.current = null;
     dragFromCol.current = null;
+
+    // Persist to DB only when column changed
+    if (fromCol !== toColKey) {
+      const targetStatus = COLUMN_TARGET_STATUS[toColKey];
+      if (targetStatus) {
+        startTransition(async () => {
+          const result = await moveKanbanCard(id, targetStatus);
+          if (result.error) {
+            // Rollback optimistic update on error
+            setCols(snapshot);
+          }
+        });
+      }
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────

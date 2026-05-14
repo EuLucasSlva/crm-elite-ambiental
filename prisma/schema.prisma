@@ -97,6 +97,12 @@ enum PaymentStatus {
   WAIVED
 }
 
+enum InstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+}
+
 enum ExpenseCategory {
   FUEL
   PPE
@@ -211,6 +217,7 @@ model ServiceOrder {
   cost          Float?        // Computed cost from stock usage (R$)
   paymentStatus PaymentStatus @default(PENDING)
   paidAt        DateTime?
+  installmentCount Int?       // null = à vista, 2+ = parcelado
 
   customer        Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
   technician      User?            @relation("Technician", fields: [technicianId], references: [id])
@@ -221,6 +228,7 @@ model ServiceOrder {
   certificate     Certificate?
   warranty        Warranty?
   stockMovements  StockMovement[]
+  installments    Installment[]
   auditLogs       AuditLog[]       @relation("ServiceOrderAudit")
   expenses        Expense[]        @relation("ServiceOrderExpenses")
 
@@ -313,12 +321,17 @@ model TechnicalVisit {
 model ApplicationPoint {
   id          String    @id @default(cuid())
   visitId     String
+  stockItemId String?
   location    String
   productName String
   doseApplied Float
   unit        StockUnit
 
-  visit TechnicalVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  visit     TechnicalVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  stockItem StockItem?     @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+
+  @@index([visitId])
+  @@index([stockItemId])
 }
 
 // ─────────────────────────────────────────────
@@ -406,8 +419,9 @@ model StockItem {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  movements StockMovement[]
-  batches   StockBatch[]
+  movements         StockMovement[]
+  batches           StockBatch[]
+  applicationPoints ApplicationPoint[]
 
   @@index([name])
   @@index([expiryDate])
@@ -495,6 +509,28 @@ model Expense {
   @@index([category])
   @@index([serviceOrderId])
   @@index([createdById])
+}
+
+// ─────────────────────────────────────────────
+// Installment — parcelas de pagamento de uma OS
+// ─────────────────────────────────────────────
+
+model Installment {
+  id             String            @id @default(cuid())
+  serviceOrderId String
+  number         Int               // 1, 2, 3...
+  amount         Float
+  dueDate        DateTime
+  status         InstallmentStatus @default(PENDING)
+  paidAt         DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId])
+  @@index([dueDate])
+  @@index([status])
 }
 
 // ─────────────────────────────────────────────

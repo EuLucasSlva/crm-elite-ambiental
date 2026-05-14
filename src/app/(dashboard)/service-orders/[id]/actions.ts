@@ -12,6 +12,82 @@ import {
 } from "@/lib/service-order-machine";
 import type { ServiceOrderStatus, Role, PaymentStatus } from "@prisma/client";
 
+// ─── Move Kanban Card ────────────────────────────────────────────────────────
+
+const STATUS_ENUM = [
+  "LEAD_CAPTURED",
+  "INSPECTION_SCHEDULED",
+  "VISIT_DONE",
+  "QUOTE_CREATED",
+  "QUOTE_APPROVED",
+  "QUOTE_REJECTED",
+  "SERVICE_SCHEDULED",
+  "SERVICE_EXECUTED",
+  "CERTIFICATE_ISSUED",
+  "WARRANTY_ACTIVE",
+  "CLOSED",
+  "CANCELED",
+] as [ServiceOrderStatus, ...ServiceOrderStatus[]];
+
+export type MoveKanbanState = { error?: string; success?: boolean };
+
+export async function moveKanbanCard(
+  orderId: string,
+  toStatus: ServiceOrderStatus
+): Promise<MoveKanbanState> {
+  const session = await auth();
+  if (!session?.user) return { error: "Sessão expirada." };
+
+  const schema = z.object({
+    orderId: z.string().min(1).max(40),
+    toStatus: z.enum(STATUS_ENUM),
+  });
+  const parsed = schema.safeParse({ orderId, toStatus });
+  if (!parsed.success) return { error: "Dados inválidos." };
+
+  const role = session.user.role as Role;
+
+  const order = await prisma.serviceOrder.findUnique({
+    where: { id: parsed.data.orderId },
+    select: { status: true },
+  });
+  if (!order) return { error: "OS não encontrada." };
+
+  // Allow same-column reorder without transition validation
+  if (order.status === parsed.data.toStatus) return { success: true };
+
+  try {
+    assertEditAllowed(order.status, role);
+    assertTransition(order.status, parsed.data.toStatus, role);
+  } catch (err) {
+    if (err instanceof TransitionError) return { error: err.message };
+    return { error: "Transição não permitida." };
+  }
+
+  const now = new Date();
+  const extra: Record<string, unknown> = {};
+  if (parsed.data.toStatus === "SERVICE_EXECUTED") extra.executedAt = now;
+  if (parsed.data.toStatus === "CLOSED" || parsed.data.toStatus === "CANCELED") extra.closedAt = now;
+
+  await prisma.serviceOrder.update({
+    where: { id: parsed.data.orderId },
+    data: { status: parsed.data.toStatus, ...extra, updatedAt: now },
+  });
+
+  await writeAuditLog({
+    entityName: "ServiceOrder",
+    entityId: parsed.data.orderId,
+    userId: session.user.id,
+    changes: { status: { from: order.status, to: parsed.data.toStatus } },
+    serviceOrderId: parsed.data.orderId,
+  });
+
+  revalidatePath("/service-orders");
+  revalidatePath(`/service-orders/${parsed.data.orderId}`);
+
+  return { success: true };
+}
+
 export type TransitionState = {
   error?: string;
   success?: boolean;
@@ -111,8 +187,6 @@ export async function updatePaymentStatus(
   const role = session.user.role as Role;
   if (role === "TECHNICIAN") return { error: "Sem permissão." };
 
-  // Validação estrita via Zod — impede injeção de valores arbitrários no enum
-  // e garante que price seja um número dentro de um intervalo aceitável.
   const paymentSchema = z.object({
     id: z.string().min(1).max(40),
     paymentStatus: z.enum([
@@ -122,16 +196,21 @@ export async function updatePaymentStatus(
       "WAIVED",
     ] as [PaymentStatus, ...PaymentStatus[]]),
     price: z.coerce.number().min(0).max(9_999_999).optional().nullable(),
+    installments: z.coerce.number().int().min(1).max(60).optional().nullable(),
+    firstDueDate: z.string().optional().nullable(),
   });
 
   const paymentParsed = paymentSchema.safeParse({
     id: formData.get("id"),
     paymentStatus: formData.get("paymentStatus"),
     price: formData.get("price") || undefined,
+    installments: formData.get("installments") || undefined,
+    firstDueDate: formData.get("firstDueDate") || undefined,
   });
   if (!paymentParsed.success) return { error: "Dados inválidos." };
 
-  const { id, paymentStatus: newStatus } = paymentParsed.data;
+  const { id, paymentStatus: newStatus, installments, firstDueDate } = paymentParsed.data;
+  const price = paymentParsed.data.price;
 
   const order = await prisma.serviceOrder.findUnique({
     where: { id },
@@ -140,14 +219,55 @@ export async function updatePaymentStatus(
   if (!order) return { error: "OS não encontrada." };
 
   const now = new Date();
-  const data: Record<string, unknown> = { paymentStatus: newStatus, updatedAt: now };
+  const isParcelado = installments && installments > 1 && firstDueDate;
 
-  if (newStatus === "PAID") data.paidAt = now;
-  if (paymentParsed.data.price !== undefined && paymentParsed.data.price !== null) {
-    data.price = paymentParsed.data.price;
+  const data: Record<string, unknown> = {
+    paymentStatus: newStatus,
+    updatedAt: now,
+  };
+
+  if (price !== undefined && price !== null) data.price = price;
+
+  if (isParcelado) {
+    data.installmentCount = installments;
+    // For installment payment, OS is only fully paid when all installments paid
+    // Keep paidAt null until all installments are paid
+  } else {
+    if (newStatus === "PAID") data.paidAt = now;
   }
 
-  await prisma.serviceOrder.update({ where: { id }, data });
+  const effectivePrice = (price !== null && price !== undefined ? price : order.price) ?? 0;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.serviceOrder.update({ where: { id }, data });
+
+    // Create installments if parcelado and not already created
+    if (isParcelado && newStatus === "PAID" && firstDueDate) {
+      // Remove existing installments first
+      await tx.installment.deleteMany({ where: { serviceOrderId: id } });
+
+      const installmentAmount = effectivePrice / installments;
+      const baseDate = new Date(firstDueDate);
+
+      for (let i = 0; i < installments; i++) {
+        const dueDate = new Date(baseDate);
+        dueDate.setMonth(dueDate.getMonth() + i);
+
+        await tx.installment.create({
+          data: {
+            serviceOrderId: id,
+            number: i + 1,
+            amount: installmentAmount,
+            dueDate,
+            status: "PENDING",
+          },
+        });
+      }
+    } else if (newStatus !== "PAID") {
+      // Reset installments if reverting payment
+      await tx.installment.deleteMany({ where: { serviceOrderId: id } });
+    }
+  });
 
   await writeAuditLog({
     entityName: "ServiceOrder",
@@ -155,12 +275,59 @@ export async function updatePaymentStatus(
     userId: session.user.id,
     changes: {
       paymentStatus: { from: order.paymentStatus, to: newStatus },
-      ...(data.price !== undefined ? { price: { from: order.price, to: data.price } } : {}),
+      ...(price !== undefined ? { price: { from: order.price, to: price } } : {}),
+      ...(isParcelado ? { installments: { to: installments } } : {}),
     },
     serviceOrderId: id,
   });
 
   revalidatePath(`/service-orders/${id}`);
+  revalidatePath("/financeiro");
+
+  return { success: true };
+}
+
+// ─── Mark installment as paid ────────────────────────────────────────────────
+
+export type MarkInstallmentState = { error?: string; success?: boolean };
+
+export async function markInstallmentPaid(
+  installmentId: string
+): Promise<MarkInstallmentState> {
+  const session = await auth();
+  if (!session?.user) return { error: "Sessão expirada." };
+
+  const role = session.user.role as Role;
+  if (role === "TECHNICIAN") return { error: "Sem permissão." };
+
+  const installment = await prisma.installment.findUnique({
+    where: { id: installmentId },
+    include: { serviceOrder: { select: { id: true, installmentCount: true } } },
+  });
+  if (!installment) return { error: "Parcela não encontrada." };
+
+  const now = new Date();
+
+  await prisma.installment.update({
+    where: { id: installmentId },
+    data: { status: "PAID", paidAt: now },
+  });
+
+  // Check if all installments are paid — if so, mark OS as fully paid
+  const allInstallments = await prisma.installment.findMany({
+    where: { serviceOrderId: installment.serviceOrderId },
+    select: { status: true },
+  });
+
+  const allPaid = allInstallments.every((i) => i.status === "PAID");
+  if (allPaid) {
+    await prisma.serviceOrder.update({
+      where: { id: installment.serviceOrderId },
+      data: { paidAt: now, paymentStatus: "PAID" },
+    });
+  }
+
+  revalidatePath(`/service-orders/${installment.serviceOrderId}`);
   revalidatePath("/financeiro");
 
   return { success: true };

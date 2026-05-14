@@ -23,6 +23,7 @@ import {
 } from "@/lib/service-order-machine";
 import { TransitionButtons } from "./TransitionButtons";
 import { PaymentButton } from "./PaymentButton";
+import { InstallmentsSection } from "./InstallmentsSection";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteServiceOrder } from "@/lib/delete-actions";
 import type { ServiceOrderStatus, Role } from "@prisma/client";
@@ -73,6 +74,22 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
         },
         certificate: { select: { issuedAt: true, technicalResponsible: true } },
         warranty: { select: { startsAt: true, expiresAt: true, status: true } },
+        installments: {
+          orderBy: { number: "asc" },
+          select: { id: true, number: true, amount: true, dueDate: true, status: true, paidAt: true },
+        },
+        stockMovements: {
+          where: { delta: { lt: 0 } },
+          orderBy: { performedAt: "asc" },
+          select: {
+            id: true,
+            applicationPoint: true,
+            delta: true,
+            unitCostSnapshot: true,
+            performedAt: true,
+            stockItem: { select: { name: true, unit: true } },
+          },
+        },
       },
     }),
   ]);
@@ -348,6 +365,41 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
               </div>
             )}
           </section>
+
+          {/* Insumos utilizados */}
+          {order.stockMovements.length > 0 && (
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
+                Insumos Utilizados
+              </h2>
+              <div className="space-y-2">
+                {order.stockMovements.map((m) => (
+                  <div key={m.id} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm">
+                    <span className="font-medium text-gray-800 flex-1">
+                      {m.stockItem?.name ?? "Produto"}
+                    </span>
+                    {m.applicationPoint && (
+                      <span className="text-xs text-gray-500">{m.applicationPoint}</span>
+                    )}
+                    <span className="font-mono text-xs text-gray-700 whitespace-nowrap">
+                      {Math.abs(m.delta).toLocaleString("pt-BR")} {m.stockItem?.unit?.toLowerCase()}
+                    </span>
+                    {m.unitCostSnapshot > 0 && (
+                      <span className="text-xs text-gray-500 whitespace-nowrap">
+                        {formatCurrency(Math.abs(m.delta) * m.unitCostSnapshot)}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Installments */}
+          <InstallmentsSection
+            installments={order.installments}
+            canManage={userRole === "ADMIN" || userRole === "MANAGER"}
+          />
 
           {/* Certificate & Warranty */}
           {(order.certificate || order.warranty) && (
