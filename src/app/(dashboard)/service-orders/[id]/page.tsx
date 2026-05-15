@@ -24,6 +24,7 @@ import {
 import { TransitionButtons } from "./TransitionButtons";
 import { PaymentButton } from "./PaymentButton";
 import { InstallmentsSection } from "./InstallmentsSection";
+import { EditPriceButton } from "./EditPriceButton";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteServiceOrder } from "@/lib/delete-actions";
 import type { ServiceOrderStatus, Role } from "@prisma/client";
@@ -226,9 +227,14 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
               </span>
             </div>
             <dl className="grid gap-x-8 gap-y-2 sm:grid-cols-3 text-sm">
-              <div className="flex justify-between gap-2">
+              <div className="flex justify-between gap-2 items-center">
                 <dt className="text-gray-500">Valor cobrado</dt>
-                <dd className="font-semibold text-gray-800">{formatCurrency(order.price)}</dd>
+                <dd className="font-semibold text-gray-800 flex items-center">
+                  {formatCurrency(order.price)}
+                  {(userRole === "ADMIN" || userRole === "MANAGER") && (
+                    <EditPriceButton orderId={order.id} currentPrice={order.price} />
+                  )}
+                </dd>
               </div>
               <div className="flex justify-between gap-2">
                 <dt className="text-gray-500">Custo (insumos)</dt>

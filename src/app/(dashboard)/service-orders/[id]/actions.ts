@@ -12,6 +12,36 @@ import {
 } from "@/lib/service-order-machine";
 import type { ServiceOrderStatus, Role, PaymentStatus } from "@prisma/client";
 
+// ─── Update price only (no payment status change) ────────────────────────────
+
+export type UpdatePriceState = { error?: string; success?: boolean };
+
+export async function updatePrice(
+  orderId: string,
+  price: number | null
+): Promise<UpdatePriceState> {
+  const session = await auth();
+  if (!session?.user) return { error: "Sessão expirada." };
+
+  const role = session.user.role as Role;
+  if (role === "TECHNICIAN") return { error: "Sem permissão." };
+
+  const schema = z.object({
+    orderId: z.string().min(1).max(40),
+    price: z.number().min(0).max(9_999_999).nullable(),
+  });
+  const parsed = schema.safeParse({ orderId, price });
+  if (!parsed.success) return { error: "Valor inválido." };
+
+  await prisma.serviceOrder.update({
+    where: { id: parsed.data.orderId },
+    data: { price: parsed.data.price, updatedAt: new Date() },
+  });
+
+  revalidatePath(`/service-orders/${parsed.data.orderId}`);
+  return { success: true };
+}
+
 // ─── Move Kanban Card ────────────────────────────────────────────────────────
 
 const STATUS_ENUM = [

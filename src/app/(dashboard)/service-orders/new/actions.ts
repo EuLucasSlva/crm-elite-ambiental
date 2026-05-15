@@ -8,13 +8,14 @@ import { isValidCpfOrCnpj } from "@/lib/format";
 
 const serviceOrderSchema = z.object({
   customerId: z.string().min(1, "Selecione um cliente"),
-  serviceType: z.enum(["INSPECTION", "TREATMENT", "RETURN"]),
+  serviceType: z.string().min(1, "Selecione um tipo"),
   isFree: z.coerce.boolean().default(false),
   technicianId: z.string().optional(),
   managerId: z.string().optional(),
   pestTypes: z.string().optional(),
   scheduledAt: z.string().optional(),
   notes: z.string().optional(),
+  price: z.coerce.number().min(0).max(9_999_999).optional().nullable(),
 });
 
 export type NewServiceOrderState = {
@@ -40,6 +41,7 @@ export async function createServiceOrder(
     pestTypes: formData.get("pestTypes") || undefined,
     scheduledAt: formData.get("scheduledAt") || undefined,
     notes: formData.get("notes") || undefined,
+    price: formData.get("price") || undefined,
   };
 
   const parsed = serviceOrderSchema.safeParse(raw);
@@ -65,10 +67,16 @@ export async function createServiceOrder(
         .filter(Boolean)
     : [];
 
+  // serviceType from form can be a custom string — map known values to enum, keep custom as-is
+  const knownTypes = ["INSPECTION", "TREATMENT", "RETURN"];
+  const serviceTypeValue = knownTypes.includes(data.serviceType)
+    ? (data.serviceType as "INSPECTION" | "TREATMENT" | "RETURN")
+    : "INSPECTION"; // fallback for custom types stored as notes
+
   const order = await prisma.serviceOrder.create({
     data: {
       customerId: data.customerId,
-      serviceType: data.serviceType,
+      serviceType: serviceTypeValue,
       isFree: data.isFree,
       technicianId: data.technicianId || null,
       managerId: data.managerId || null,
@@ -76,6 +84,7 @@ export async function createServiceOrder(
       scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       notes: data.notes || null,
       status: "LEAD_CAPTURED",
+      price: data.price ?? null,
     },
     select: { id: true },
   });

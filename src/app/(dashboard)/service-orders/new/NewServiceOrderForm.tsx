@@ -11,7 +11,13 @@ import type { Role } from "@prisma/client";
 
 const INITIAL_STATE: NewServiceOrderState = {};
 
-const PEST_OPTIONS = [
+const DEFAULT_SERVICE_TYPES = [
+  { value: "INSPECTION", label: "Inspeção" },
+  { value: "TREATMENT", label: "Tratamento" },
+  { value: "RETURN", label: "Retorno" },
+];
+
+const DEFAULT_PEST_OPTIONS = [
   "Baratas",
   "Ratos",
   "Formigas",
@@ -94,8 +100,32 @@ export function NewServiceOrderForm({
   const [showDropdown, setShowDropdown] = useState(false);
   const [isFree, setIsFree] = useState(false);
   const [selectedPests, setSelectedPests] = useState<string[]>([]);
+  const [pestOptions, setPestOptions] = useState(DEFAULT_PEST_OPTIONS);
+  const [customPestInput, setCustomPestInput] = useState("");
+  const [serviceTypes, setServiceTypes] = useState(DEFAULT_SERVICE_TYPES);
+  const [customServiceInput, setCustomServiceInput] = useState("");
   const [showModal, setShowModal] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const addCustomPest = useCallback(() => {
+    const name = customPestInput.trim();
+    if (!name) return;
+    if (!pestOptions.includes(name)) {
+      setPestOptions((prev) => [...prev.slice(0, -1), name, prev[prev.length - 1]]);
+    }
+    setSelectedPests((prev) => prev.includes(name) ? prev : [...prev, name]);
+    setCustomPestInput("");
+  }, [customPestInput, pestOptions]);
+
+  const addCustomServiceType = useCallback(() => {
+    const label = customServiceInput.trim();
+    if (!label) return;
+    const value = label.toUpperCase().replace(/\s+/g, "_");
+    if (!serviceTypes.find((s) => s.value === value)) {
+      setServiceTypes((prev) => [...prev, { value, label }]);
+    }
+    setCustomServiceInput("");
+  }, [customServiceInput, serviceTypes]);
 
   const handleCustomerSearch = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -283,16 +313,37 @@ export function NewServiceOrderForm({
             <Label htmlFor="serviceType" required>
               Tipo
             </Label>
-            <select
-              id="serviceType"
-              name="serviceType"
-              required
-              className={inputCls}
-            >
-              <option value="INSPECTION">Inspeção</option>
-              <option value="TREATMENT">Tratamento</option>
-              <option value="RETURN">Retorno</option>
-            </select>
+            <div className="flex gap-2">
+              <select
+                id="serviceType"
+                name="serviceType"
+                required
+                className={inputCls}
+              >
+                {serviceTypes.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* Add custom service type */}
+            <div className="flex gap-1.5 mt-1.5">
+              <input
+                type="text"
+                value={customServiceInput}
+                onChange={(e) => setCustomServiceInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomServiceType(); } }}
+                placeholder="Novo tipo..."
+                className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-700 focus:border-green-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={addCustomServiceType}
+                className="rounded-lg bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+                title="Adicionar tipo personalizado"
+              >
+                + Adicionar
+              </button>
+            </div>
             <FieldError errors={e.serviceType} />
           </div>
 
@@ -307,7 +358,21 @@ export function NewServiceOrderForm({
             <FieldError errors={e.scheduledAt} />
           </div>
 
-          <div className="sm:col-span-2">
+          <div>
+            <Label htmlFor="price">Valor do Serviço (R$)</Label>
+            <input
+              id="price"
+              name="price"
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0,00"
+              className={inputCls}
+            />
+            <p className="mt-1 text-xs text-gray-400">Opcional — pode ser preenchido depois</p>
+          </div>
+
+          <div className="flex items-end pb-1">
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -325,7 +390,7 @@ export function NewServiceOrderForm({
                 />
               </button>
               <label className="text-sm font-medium text-gray-700">
-                Serviço gratuito / inspeção sem custo
+                Serviço gratuito
               </label>
             </div>
             <input type="hidden" name="isFree" value={isFree ? "true" : "false"} />
@@ -339,8 +404,8 @@ export function NewServiceOrderForm({
         <p className="text-sm text-gray-500 mb-3">
           Selecione as pragas alvo desta ordem:
         </p>
-        <div className="flex flex-wrap gap-2">
-          {PEST_OPTIONS.map((pest) => (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {pestOptions.map((pest) => (
             <button
               key={pest}
               type="button"
@@ -354,6 +419,24 @@ export function NewServiceOrderForm({
               {pest}
             </button>
           ))}
+        </div>
+        {/* Add custom pest */}
+        <div className="flex gap-1.5 mt-1">
+          <input
+            type="text"
+            value={customPestInput}
+            onChange={(e) => setCustomPestInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomPest(); } }}
+            placeholder="Outra praga..."
+            className="flex-1 max-w-xs rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-700 focus:border-green-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={addCustomPest}
+            className="rounded-lg bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+          >
+            + Adicionar
+          </button>
         </div>
         <input
           type="hidden"
