@@ -46,6 +46,7 @@ export async function moveKanbanCard(
   if (!parsed.success) return { error: "Dados inválidos." };
 
   const role = session.user.role as Role;
+  if (role === "TECHNICIAN") return { error: "Sem permissão para mover cards." };
 
   const order = await prisma.serviceOrder.findUnique({
     where: { id: parsed.data.orderId },
@@ -53,16 +54,8 @@ export async function moveKanbanCard(
   });
   if (!order) return { error: "OS não encontrada." };
 
-  // Allow same-column reorder without transition validation
+  // Same status — nothing to do
   if (order.status === parsed.data.toStatus) return { success: true };
-
-  try {
-    assertEditAllowed(order.status, role);
-    assertTransition(order.status, parsed.data.toStatus, role);
-  } catch (err) {
-    if (err instanceof TransitionError) return { error: err.message };
-    return { error: "Transição não permitida." };
-  }
 
   const now = new Date();
   const extra: Record<string, unknown> = {};

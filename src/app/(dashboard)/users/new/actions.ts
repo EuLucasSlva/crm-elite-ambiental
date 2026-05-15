@@ -16,9 +16,8 @@ const createUserSchema = z
     email: z.string().email("E-mail inválido").max(150),
     password: z
       .string()
-      .min(8, "Senha deve ter ao menos 8 caracteres")
-      .max(100)
-      .regex(/\d/, "Senha deve conter ao menos um número"),
+      .min(6, "Senha deve ter ao menos 6 caracteres")
+      .max(100),
     confirmPassword: z.string(),
     role: z.enum(["ADMIN", "MANAGER", "TECHNICIAN"] as [Role, ...Role[]]),
     phone: z.string().max(20).optional().nullable(),
