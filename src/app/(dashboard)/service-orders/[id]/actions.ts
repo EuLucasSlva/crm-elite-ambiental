@@ -12,6 +12,105 @@ import {
 } from "@/lib/service-order-machine";
 import type { ServiceOrderStatus, Role, PaymentStatus } from "@prisma/client";
 
+// ─── Add insumo to existing OS (works regardless of status) ─────────────────
+
+export type AddInsumoState = { error?: string; success?: boolean };
+
+export async function addInsumo(
+  orderId: string,
+  point: {
+    stockItemId: string;
+    productName: string;
+    location: string;
+    doseApplied: number;
+    unit: import("@prisma/client").StockUnit;
+  }
+): Promise<AddInsumoState> {
+  const session = await auth();
+  if (!session?.user) return { error: "Sessão expirada." };
+
+  const schema = z.object({
+    orderId: z.string().min(1).max(40),
+    stockItemId: z.string().min(1),
+    productName: z.string().min(1),
+    location: z.string().min(1),
+    doseApplied: z.number().positive(),
+    unit: z.enum(["ML", "G", "L", "KG", "UNIT", "M2"] as [import("@prisma/client").StockUnit, ...import("@prisma/client").StockUnit[]]),
+  });
+
+  const parsed = schema.safeParse({ orderId, ...point });
+  if (!parsed.success) return { error: "Dados inválidos." };
+
+  const { stockItemId, productName, location, doseApplied, unit } = parsed.data;
+
+  const [order, stockItem] = await Promise.all([
+    prisma.serviceOrder.findUnique({ where: { id: orderId }, select: { id: true, cost: true, technicianId: true } }),
+    prisma.stockItem.findUnique({ where: { id: stockItemId }, select: { quantity: true, unitCost: true, expiryDate: true, name: true } }),
+  ]);
+
+  if (!order) return { error: "OS não encontrada." };
+  if (!stockItem) return { error: "Produto não encontrado no estoque." };
+  if (stockItem.expiryDate && stockItem.expiryDate < new Date()) return { error: `Produto "${productName}" está vencido.` };
+  if (stockItem.quantity < doseApplied) return { error: `Estoque insuficiente. Disponível: ${stockItem.quantity}, necessário: ${doseApplied}.` };
+
+  const now = new Date();
+  const unitCost = stockItem.unitCost;
+  const movementCost = doseApplied * unitCost;
+  const techId = order.technicianId ?? session.user.id;
+
+  await prisma.$transaction(async (tx) => {
+    // Find or create a TechnicalVisit for this OS to attach the application point
+    let visit = await tx.technicalVisit.findFirst({
+      where: { serviceOrderId: orderId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+
+    if (!visit) {
+      visit = await tx.technicalVisit.create({
+        data: {
+          serviceOrderId: orderId,
+          technicianId: techId,
+          scheduledAt: now,
+          checkInAt: now,
+          checkOutAt: now,
+        },
+        select: { id: true },
+      });
+    }
+
+    await tx.applicationPoint.create({
+      data: { visitId: visit.id, stockItemId, location, productName, doseApplied, unit },
+    });
+
+    await tx.stockMovement.create({
+      data: {
+        stockItemId,
+        serviceOrderId: orderId,
+        visitId: visit.id,
+        applicationPoint: location,
+        delta: -doseApplied,
+        unitCostSnapshot: unitCost,
+        reason: `Adicionado manualmente à OS`,
+        performedById: session.user.id,
+      },
+    });
+
+    await tx.stockItem.update({
+      where: { id: stockItemId },
+      data: { quantity: { decrement: doseApplied } },
+    });
+
+    await tx.serviceOrder.update({
+      where: { id: orderId },
+      data: { cost: (order.cost ?? 0) + movementCost, updatedAt: now },
+    });
+  });
+
+  revalidatePath(`/service-orders/${orderId}`);
+  return { success: true };
+}
+
 // ─── Update price only (no payment status change) ────────────────────────────
 
 export type UpdatePriceState = { error?: string; success?: boolean };

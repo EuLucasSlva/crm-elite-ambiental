@@ -25,6 +25,7 @@ import { TransitionButtons } from "./TransitionButtons";
 import { PaymentButton } from "./PaymentButton";
 import { InstallmentsSection } from "./InstallmentsSection";
 import { EditPriceButton } from "./EditPriceButton";
+import { AddInsumoButton } from "./AddInsumoButton";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteServiceOrder } from "@/lib/delete-actions";
 import type { ServiceOrderStatus, Role } from "@prisma/client";
@@ -373,11 +374,18 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
           </section>
 
           {/* Insumos utilizados */}
-          {order.stockMovements.length > 0 && (
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
+          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
                 Insumos Utilizados
               </h2>
+              {(userRole === "ADMIN" || userRole === "MANAGER" || userRole === "TECHNICIAN") && (
+                <AddInsumoButton orderId={order.id} />
+              )}
+            </div>
+            {order.stockMovements.length === 0 ? (
+              <p className="text-sm text-gray-400">Nenhum insumo registrado.</p>
+            ) : (
               <div className="space-y-2">
                 {order.stockMovements.map((m) => (
                   <div key={m.id} className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm">
@@ -398,8 +406,8 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
                   </div>
                 ))}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
           {/* Installments */}
           <InstallmentsSection
