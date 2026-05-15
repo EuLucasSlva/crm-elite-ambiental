@@ -336,7 +336,7 @@ function KanbanColWrapper({
             >
               <Link
                 href={`/service-orders/${order.id}`}
-                className="block p-3"
+                className="block p-3 pb-2"
                 draggable={false}
                 onClick={(e) => { if (draggingId) e.preventDefault(); }}
               >
@@ -389,6 +389,21 @@ function KanbanColWrapper({
                   )}
                 </div>
               </Link>
+
+              {/* Execution quick-link — shown when card is in SERVICE_SCHEDULED or agendado column */}
+              {(order.status === "SERVICE_SCHEDULED" || col.key === "agendado") && (
+                <div className="px-3 pb-2.5">
+                  <Link
+                    href={`/service-orders/${order.id}/execution`}
+                    draggable={false}
+                    onClick={(e) => { if (draggingId) e.preventDefault(); }}
+                    className="flex items-center justify-center gap-1 w-full rounded-lg py-1 text-xs font-semibold text-white transition-colors"
+                    style={{ background: col.accentColor }}
+                  >
+                    ▶ Registrar Execução
+                  </Link>
+                </div>
+              )}
 
               {/* Drag handle */}
               <div className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-30 transition-opacity pointer-events-none">
