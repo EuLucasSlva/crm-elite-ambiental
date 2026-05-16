@@ -13,6 +13,7 @@ const METHODS = ["PIX", "CASH", "CARD", "TRANSFER", "BOLETO"] as const;
 
 const expenseSchema = z.object({
   category: z.enum(CATEGORIES),
+  customCategory: z.string().max(60).optional().nullable(),
   description: z.string().min(2, "Descrição obrigatória").max(200),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   paidAt: z.string().min(1, "Data obrigatória"),
@@ -41,6 +42,7 @@ export async function createExpense(
 
   const raw = {
     category: formData.get("category"),
+    customCategory: formData.get("customCategory") || null,
     description: formData.get("description"),
     amount: formData.get("amount"),
     paidAt: formData.get("paidAt"),
@@ -58,6 +60,7 @@ export async function createExpense(
   const expense = await prisma.expense.create({
     data: {
       category: parsed.data.category,
+      customCategory: parsed.data.customCategory ?? null,
       description: parsed.data.description,
       amount: parsed.data.amount,
       paidAt: new Date(parsed.data.paidAt),

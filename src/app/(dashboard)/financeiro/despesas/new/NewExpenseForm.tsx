@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useRef } from "react";
 import { createExpense, type CreateExpenseState } from "../actions";
 import { EXPENSE_CATEGORY_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/labels-extras";
 
@@ -10,10 +10,30 @@ interface Props {
 
 const initialState: CreateExpenseState = {};
 
+const BUILTIN_CATEGORIES = Object.entries(EXPENSE_CATEGORY_LABELS).filter(
+  ([v]) => v !== "OTHER"
+);
+
 export function NewExpenseForm({ orders }: Props) {
   const [state, formAction, pending] = useActionState(createExpense, initialState);
 
   const today = new Date().toISOString().split("T")[0];
+
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
+  const [customInput, setCustomInput] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("FUEL");
+  const customInputRef = useRef<HTMLInputElement>(null);
+
+  function addCustomCategory() {
+    const label = customInput.trim();
+    if (!label || customCategories.includes(label)) return;
+    setCustomCategories((prev) => [...prev, label]);
+    setSelectedCategory(`custom:${label}`);
+    setCustomInput("");
+  }
+
+  const isCustomSelected = selectedCategory.startsWith("custom:");
+  const customLabel = isCustomSelected ? selectedCategory.slice(7) : null;
 
   return (
     <form action={formAction} className="space-y-4">
@@ -23,20 +43,32 @@ export function NewExpenseForm({ orders }: Props) {
         </div>
       )}
 
+      {/* Hidden inputs for category submission */}
+      <input type="hidden" name="category" value={isCustomSelected ? "OTHER" : selectedCategory} />
+      {isCustomSelected && customLabel && (
+        <input type="hidden" name="customCategory" value={customLabel} />
+      )}
+
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <label className="block text-xs font-bold mb-1" style={{ color: "var(--text)" }}>
             Categoria *
           </label>
           <select
-            name="category"
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
             required
             className="w-full rounded-md border px-3 py-2 text-sm min-h-[44px]"
             style={{ borderColor: "#d0d5e8" }}
-            defaultValue="FUEL"
           >
-            {Object.entries(EXPENSE_CATEGORY_LABELS).map(([value, label]) => (
+            {BUILTIN_CATEGORIES.map(([value, label]) => (
               <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+            <option value="OTHER">Outros</option>
+            {customCategories.map((label) => (
+              <option key={`custom:${label}`} value={`custom:${label}`}>
                 {label}
               </option>
             ))}
@@ -44,6 +76,30 @@ export function NewExpenseForm({ orders }: Props) {
           {state?.errors?.category && (
             <p className="mt-1 text-xs text-red-600">{state.errors.category[0]}</p>
           )}
+
+          {/* Add custom category inline */}
+          <div className="flex gap-2 mt-2">
+            <input
+              ref={customInputRef}
+              type="text"
+              value={customInput}
+              onChange={(e) => setCustomInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomCategory(); } }}
+              placeholder="Nova categoria..."
+              className="flex-1 rounded-md border px-2 py-1 text-xs min-h-[32px]"
+              style={{ borderColor: "#d0d5e8" }}
+              maxLength={60}
+            />
+            <button
+              type="button"
+              onClick={addCustomCategory}
+              disabled={!customInput.trim()}
+              className="rounded-md px-3 py-1 text-xs font-semibold text-white disabled:opacity-40 min-h-[32px]"
+              style={{ background: "#dc2626" }}
+            >
+              + Adicionar
+            </button>
+          </div>
         </div>
 
         <div>

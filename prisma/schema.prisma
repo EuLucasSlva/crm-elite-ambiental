@@ -491,6 +491,7 @@ model StockBatch {
 model Expense {
   id             String          @id @default(cuid())
   category       ExpenseCategory
+  customCategory String?
   description    String
   amount         Float
   paidAt         DateTime

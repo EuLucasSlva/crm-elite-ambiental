@@ -144,7 +144,7 @@ export default async function ExpensesPage() {
                   <tr key={e.id} className="border-b last:border-0" style={{ borderColor: "#dde1ed" }}>
                     <td className="px-2 py-2.5 text-xs" style={{ color: "var(--text-muted)" }}>{formatDate(e.paidAt)}</td>
                     <td className="px-2 py-2.5">
-                      <Badge variant="gray" label={EXPENSE_CATEGORY_LABELS[e.category]} />
+                      <Badge variant="gray" label={e.category === "OTHER" && e.customCategory ? e.customCategory : EXPENSE_CATEGORY_LABELS[e.category]} />
                     </td>
                     <td className="px-2 py-2.5 font-medium" style={{ color: "var(--text)" }}>{e.description}</td>
                     <td className="px-2 py-2.5 text-xs" style={{ color: "var(--text-muted)" }}>{e.supplier ?? "—"}</td>
