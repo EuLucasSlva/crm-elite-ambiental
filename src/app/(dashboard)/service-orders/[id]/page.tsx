@@ -342,7 +342,7 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
           </section>
 
           {/* Technical visits */}
-          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+          <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm print:hidden">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
               Visitas Técnicas ({order.technicalVisits.length})
             </h2>
@@ -423,10 +423,13 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
           </section>
 
           {/* Installments */}
+          {/* print:hidden via wrapper — InstallmentsSection is a client component */}
+          <div className="print:hidden">
           <InstallmentsSection
             installments={order.installments}
             canManage={userRole === "ADMIN" || userRole === "MANAGER"}
           />
+          </div>
 
           {/* Certificate & Warranty */}
           {(order.certificate || order.warranty) && (
@@ -472,13 +475,15 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
           )}
 
           {/* Transition buttons */}
+          <div className="print:hidden">
           {nextStatuses.length > 0 && (
             <TransitionButtons orderId={order.id} nextStatuses={nextStatuses} />
           )}
+          </div>
         </div>
 
         {/* Right column — occurrences timeline */}
-        <div className="space-y-5">
+        <div className="space-y-5 print:hidden">
           <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
               Histórico de Ocorrências
