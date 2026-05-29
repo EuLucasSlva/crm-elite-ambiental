@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useRef } from "react";
+import { useActionState, useState } from "react";
 import { createExpense, type CreateExpenseState } from "../actions";
 import { EXPENSE_CATEGORY_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/labels-extras";
 
@@ -22,11 +22,12 @@ export function NewExpenseForm({ orders }: Props) {
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [customInput, setCustomInput] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("FUEL");
-  const customInputRef = useRef<HTMLInputElement>(null);
+
+  const BUILTIN_LABELS = BUILTIN_CATEGORIES.map(([, label]) => label);
 
   function addCustomCategory() {
     const label = customInput.trim();
-    if (!label || customCategories.includes(label)) return;
+    if (!label || customCategories.includes(label) || BUILTIN_LABELS.includes(label)) return;
     setCustomCategories((prev) => [...prev, label]);
     setSelectedCategory(`custom:${label}`);
     setCustomInput("");
@@ -45,7 +46,7 @@ export function NewExpenseForm({ orders }: Props) {
 
       {/* Hidden inputs for category submission */}
       <input type="hidden" name="category" value={isCustomSelected ? "OTHER" : selectedCategory} />
-      {isCustomSelected && customLabel && (
+      {customLabel && (
         <input type="hidden" name="customCategory" value={customLabel} />
       )}
 
@@ -80,7 +81,6 @@ export function NewExpenseForm({ orders }: Props) {
           {/* Add custom category inline */}
           <div className="flex gap-2 mt-2">
             <input
-              ref={customInputRef}
               type="text"
               value={customInput}
               onChange={(e) => setCustomInput(e.target.value)}

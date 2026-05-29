@@ -26,6 +26,7 @@ import { PaymentButton } from "./PaymentButton";
 import { InstallmentsSection } from "./InstallmentsSection";
 import { EditPriceButton } from "./EditPriceButton";
 import { AddInsumoButton } from "./AddInsumoButton";
+import { PrintButton } from "./PrintButton";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteServiceOrder } from "@/lib/delete-actions";
 import type { ServiceOrderStatus, Role } from "@prisma/client";
@@ -138,17 +139,29 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
             )}
           </div>
         </div>
-        {(userRole === "ADMIN" || userRole === "MANAGER") && (
-          <DeleteButton
-            action={async () => {
-              "use server";
-              return deleteServiceOrder(order.id);
-            }}
-            confirmMessage={`Apagar OS ${shortId(order.id)}?\n\nTodos os dados desta OS (visitas, certificado, garantia, despesas vinculadas) serão removidos. Esta ação não pode ser desfeita.`}
-            redirectTo="/service-orders"
-            label="Apagar OS"
-          />
-        )}
+        <div className="flex items-center gap-2 flex-wrap print:hidden">
+          <PrintButton />
+          {(userRole === "ADMIN" || userRole === "MANAGER") && (
+            <Link
+              href={`/service-orders/${order.id}/edit`}
+              className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-opacity hover:opacity-80"
+              style={{ background: "#f0fdf4", border: "1px solid #86efac", color: "#166534" }}
+            >
+              ✏ Editar OS
+            </Link>
+          )}
+          {(userRole === "ADMIN" || userRole === "MANAGER") && (
+            <DeleteButton
+              action={async () => {
+                "use server";
+                return deleteServiceOrder(order.id);
+              }}
+              confirmMessage={`Apagar OS ${shortId(order.id)}?\n\nTodos os dados desta OS (visitas, certificado, garantia, despesas vinculadas) serão removidos. Esta ação não pode ser desfeita.`}
+              redirectTo="/service-orders"
+              label="Apagar OS"
+            />
+          )}
+        </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">

@@ -321,3 +321,12 @@ body {
   letter-spacing: -0.01em;
   color: var(--text);
 }
+
+/* ─── Print styles ─────────────────────────────────────────────── */
+@media print {
+  nav, header, footer, .print\:hidden { display: none !important; }
+  body { background: white !important; color: black !important; }
+  main { padding: 0 !important; }
+  .rounded-xl, .rounded-lg { border-radius: 0 !important; }
+  a { color: inherit !important; text-decoration: none !important; }
+}
