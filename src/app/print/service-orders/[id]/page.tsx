@@ -204,6 +204,11 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
           <div className="card-title">Cliente</div>
           <div className="client-name">{order.customer.fullName}</div>
           <div className="client-address">{address}</div>
+          {order.customer.phone && (
+            <div style={{ marginTop: "10px", fontSize: "15px", color: "#374151", fontWeight: 500 }}>
+              📱 {order.customer.phone}
+            </div>
+          )}
         </div>
 
         {/* Service details grid */}

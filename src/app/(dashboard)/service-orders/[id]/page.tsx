@@ -319,6 +319,12 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
                 </dd>
               </div>
               <div className="flex justify-between gap-2">
+                <dt className="text-gray-500">WhatsApp / Telefone</dt>
+                <dd className="font-medium text-gray-800">
+                  {order.customer.phone}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-2">
                 <dt className="text-gray-500">Cidade</dt>
                 <dd className="font-medium text-gray-800">
                   {order.customer.city}/{order.customer.state}

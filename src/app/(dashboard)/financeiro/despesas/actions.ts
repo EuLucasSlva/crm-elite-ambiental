@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import type { Role } from "@prisma/client";
 
-const CATEGORIES = ["FUEL", "PPE", "CHEMICAL", "SALARY", "RENT", "ADMIN", "MAINTENANCE", "MARKETING", "TAXES", "OTHER"] as const;
+const CATEGORIES = ["FUEL", "PPE", "CHEMICAL", "SALARY", "RENT", "ADMIN", "MAINTENANCE", "MARKETING", "TAXES", "FOOD", "DAILY_PAYMENT", "OTHER"] as const;
 const METHODS = ["PIX", "CASH", "CARD", "TRANSFER", "BOLETO"] as const;
 
 const expenseSchema = z.object({
