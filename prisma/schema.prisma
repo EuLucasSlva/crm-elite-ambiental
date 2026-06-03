@@ -113,6 +113,8 @@ enum ExpenseCategory {
   MAINTENANCE
   MARKETING
   TAXES
+  FOOD
+  DAILY_PAYMENT
   OTHER
 }
 
@@ -198,6 +200,7 @@ model Customer {
 
 model ServiceOrder {
   id           String             @id @default(cuid())
+  orderNumber  String?
   customerId   String
   status       ServiceOrderStatus @default(LEAD_CAPTURED)
   serviceType  ServiceType        @default(INSPECTION)
@@ -211,6 +214,8 @@ model ServiceOrder {
   notes        String?
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
+
+  cleanWaterTank Boolean @default(false)
 
   // Financial fields
   price         Float?        // Value charged to the client (R$)

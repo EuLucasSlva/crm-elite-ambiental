@@ -31,7 +31,7 @@ const COLUMNS: KanbanColumn[] = [
   { key: "inspecao",  label: "Inspeção",  statuses: ["INSPECTION_SCHEDULED", "VISIT_DONE"],                    accentColor: "#3b82f6", headerBg: "#3b82f6", headerText: "#fff" },
   { key: "orcamento", label: "Orçamento", statuses: ["QUOTE_CREATED", "QUOTE_APPROVED", "QUOTE_REJECTED"],     accentColor: "#f59e0b", headerBg: "#f59e0b", headerText: "#78350f" },
   { key: "agendado",  label: "Agendado",  statuses: ["SERVICE_SCHEDULED"],                                     accentColor: "#22c55e", headerBg: "#22c55e", headerText: "#fff" },
-  { key: "executado", label: "Executado", statuses: ["SERVICE_EXECUTED", "CERTIFICATE_ISSUED"],                 accentColor: "#15803d", headerBg: "#15803d", headerText: "#fff" },
+  { key: "executado", label: "Tratamento", statuses: ["SERVICE_EXECUTED", "CERTIFICATE_ISSUED"],                 accentColor: "#15803d", headerBg: "#15803d", headerText: "#fff" },
   { key: "encerrado", label: "Encerrado", statuses: ["WARRANTY_ACTIVE", "CLOSED", "CANCELED"],                 accentColor: "#9ca3af", headerBg: "#9ca3af", headerText: "#fff" },
 ];
 
@@ -400,7 +400,7 @@ function KanbanColWrapper({
                     className="flex items-center justify-center gap-1 w-full rounded-lg py-1 text-xs font-semibold text-white transition-colors"
                     style={{ background: col.accentColor }}
                   >
-                    ▶ Registrar Execução
+                    ▶ Registrar Tratamento
                   </Link>
                 </div>
               )}

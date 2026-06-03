@@ -1,3 +1,4 @@
+import React from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -176,20 +177,26 @@ async function getFinancialReport() {
     .map(([type, d]) => ({ type, ...d, profit: d.revenue - d.cost }))
     .sort((a, b) => b.revenue - a.revenue);
 
-  // ── Recent paid OS ─────────────────────────────────────────────────────────
+  // ── Recent OS (paid + pending + overdue) ──────────────────────────────────
   const recentPaid = await prisma.serviceOrder.findMany({
-    where: { paymentStatus: "PAID" },
-    orderBy: { paidAt: "desc" },
-    take: 10,
+    where: {
+      paymentStatus: { in: ["PAID", "PENDING", "OVERDUE"] },
+      isFree: false,
+      price: { gt: 0 },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 15,
     select: {
       id: true,
       price: true,
       cost: true,
       paidAt: true,
+      paymentStatus: true,
       serviceType: true,
       installmentCount: true,
       customer: { select: { fullName: true } },
       technician: { select: { name: true } },
+      warranty: { select: { expiresAt: true } },
     },
   });
 
@@ -426,13 +433,13 @@ export default async function FinanceiroPage() {
         </SectionCard>
       </div>
 
-      {/* Recent paid OS */}
-      <SectionCard title="Últimas OS Pagas">
+      {/* Recent OS — paid, pending, overdue */}
+      <SectionCard title="Últimas OS Financeiras">
         <div className="table-scroll">
           <table className="table-hover w-full text-sm">
             <thead>
               <tr>
-                {["Cliente", "Tipo", "Técnico", "Valor", "Custo", "Lucro", "Pago em"].map((h) => (
+                {["Cliente", "Tipo", "Técnico", "Valor", "Custo", "Lucro", "A vencer / Pago em"].map((h) => (
                   <th
                     key={h}
                     className="text-left pb-3 text-xs font-bold uppercase tracking-wide border-b px-2"
@@ -447,22 +454,61 @@ export default async function FinanceiroPage() {
               {d.recentPaid.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-2 py-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-                    Nenhuma OS paga ainda.
+                    Nenhuma OS registrada ainda.
                   </td>
                 </tr>
               ) : (
                 d.recentPaid.map((o) => {
                   const profit = (o.price ?? 0) - (o.cost ?? 0);
+
+                  // "A vencer / Pago em" cell
+                  let dueDateCell: React.ReactNode;
+                  if (o.paymentStatus === "PAID") {
+                    dueDateCell = (
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {o.paidAt ? new Date(o.paidAt).toLocaleDateString("pt-BR") : "—"}
+                      </span>
+                    );
+                  } else if (o.paymentStatus === "OVERDUE") {
+                    dueDateCell = (
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold"
+                        style={{ background: "#fee2e2", color: "#dc2626" }}
+                      >
+                        Em atraso
+                      </span>
+                    );
+                  } else {
+                    // PENDING — show warranty expiresAt as due date if available
+                    const dueDate = o.warranty?.expiresAt
+                      ? new Date(o.warranty.expiresAt).toLocaleDateString("pt-BR")
+                      : null;
+                    dueDateCell = dueDate ? (
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
+                        style={{ background: "#fef3c7", color: "#d97706" }}
+                      >
+                        {dueDate}
+                      </span>
+                    ) : (
+                      <span style={{ color: "var(--text-muted)" }}>—</span>
+                    );
+                  }
+
                   return (
                     <tr key={o.id} className="border-b last:border-0" style={{ borderColor: "#dde1ed" }}>
-                      <td className="px-2 py-2.5 font-medium" style={{ color: "var(--text)" }}>
-                        {o.customer.fullName}
+                      <td className="px-2 py-2.5 font-medium max-w-[140px]" style={{ color: "var(--text)" }}>
+                        <span className="block truncate" title={o.customer.fullName}>
+                          {o.customer.fullName}
+                        </span>
                       </td>
                       <td className="px-2 py-2.5">
                         <Badge variant="blue" label={SERVICE_TYPE_PT[o.serviceType] ?? o.serviceType} />
                       </td>
-                      <td className="px-2 py-2.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                        {o.technician?.name ?? "—"}
+                      <td className="px-2 py-2.5 text-xs max-w-[100px]" style={{ color: "var(--text-muted)" }}>
+                        <span className="block truncate" title={o.technician?.name ?? "—"}>
+                          {o.technician?.name ?? "—"}
+                        </span>
                       </td>
                       <td className="px-2 py-2.5 font-semibold" style={{ color: "var(--navy)" }}>
                         {formatCurrency(o.price)}
@@ -473,8 +519,8 @@ export default async function FinanceiroPage() {
                       <td className="px-2 py-2.5 font-semibold" style={{ color: profit >= 0 ? "#059669" : "#ef4444" }}>
                         {formatCurrency(profit)}
                       </td>
-                      <td className="px-2 py-2.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                        {o.paidAt ? new Date(o.paidAt).toLocaleDateString("pt-BR") : "—"}
+                      <td className="px-2 py-2.5 text-xs">
+                        {dueDateCell}
                       </td>
                     </tr>
                   );

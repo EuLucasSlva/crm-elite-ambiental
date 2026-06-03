@@ -11,7 +11,7 @@ export default async function NewExpensePage() {
   if (role !== "ADMIN" && role !== "MANAGER") redirect("/");
 
   const recentOrders = await prisma.serviceOrder.findMany({
-    where: { status: { notIn: ["CANCELED"] } },
+    where: { status: { notIn: ["CANCELED", "CLOSED"] } },
     orderBy: { createdAt: "desc" },
     take: 30,
     select: {

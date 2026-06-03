@@ -18,7 +18,7 @@ import type { ServiceOrderStatus } from "@prisma/client";
 const PAGE_SIZE = 10;
 
 interface PageProps {
-  searchParams: Promise<{ status?: string; page?: string; view?: string }>;
+  searchParams: Promise<{ status?: string; page?: string; view?: string; q?: string }>;
 }
 
 const ALL_STATUSES = Object.keys(STATUS_LABELS) as ServiceOrderStatus[];
@@ -45,9 +45,21 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
     params.status && ALL_STATUSES.includes(params.status as ServiceOrderStatus)
       ? (params.status as ServiceOrderStatus)
       : undefined;
+  const q = params.q?.trim() ?? "";
   const page = Math.max(1, parseInt(params.page ?? "1", 10));
   const skip = (page - 1) * PAGE_SIZE;
-  const where = statusFilter ? { status: statusFilter } : {};
+
+  const searchClause = q
+    ? {
+        OR: [
+          { customer: { fullName: { contains: q, mode: "insensitive" as const } } },
+          { orderNumber: { contains: q, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
+  const where = statusFilter
+    ? { status: statusFilter, ...searchClause }
+    : { ...searchClause };
 
   // ── KPI stats ─────────────────────────────────────────────────────────────
   const today = new Date();
@@ -77,6 +89,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
           take: 200,
           select: {
             id: true,
+            orderNumber: true,
             status: true,
             serviceType: true,
             isFree: true,
@@ -98,6 +111,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
             take: PAGE_SIZE,
             select: {
               id: true,
+              orderNumber: true,
               status: true,
               serviceType: true,
               isFree: true,
@@ -117,6 +131,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
     const qs = new URLSearchParams();
     qs.set("view", "lista");
     if (s) qs.set("status", s);
+    if (q) qs.set("q", q);
     if (p > 1) qs.set("page", String(p));
     return `/service-orders?${qs.toString()}`;
   };
@@ -209,6 +224,36 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
       {/* ── LIST VIEW ────────────────────────────────────────────────────── */}
       {view === "lista" && (
         <>
+          {/* Search bar */}
+          <form method="GET" className="flex gap-2">
+            <input type="hidden" name="view" value="lista" />
+            {statusFilter && <input type="hidden" name="status" value={statusFilter} />}
+            <input
+              type="search"
+              name="q"
+              defaultValue={q}
+              placeholder="Buscar por cliente ou número da OS..."
+              className="flex-1 rounded-full border px-4 py-2 text-sm outline-none focus:ring-2"
+              style={{ borderColor: "#d0d5e8", background: "var(--card-bg)", color: "var(--text)" }}
+            />
+            <button
+              type="submit"
+              className="rounded-full px-5 py-2 text-xs font-bold text-white transition-opacity hover:opacity-90"
+              style={{ background: "var(--navy)" }}
+            >
+              Buscar
+            </button>
+            {q && (
+              <a
+                href={`/service-orders?view=lista${statusFilter ? `&status=${statusFilter}` : ""}`}
+                className="rounded-full border px-4 py-2 text-xs font-semibold transition-colors"
+                style={{ borderColor: "#d0d5e8", color: "var(--text-muted)" }}
+              >
+                Limpar
+              </a>
+            )}
+          </form>
+
           <ServiceOrdersFilter currentStatus={statusFilter} />
 
           {/* Desktop table */}
@@ -248,7 +293,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
                             className="font-mono text-xs font-bold hover:underline"
                             style={{ color: "var(--navy)" }}
                           >
-                            {shortId(os.id)}
+                            {os.orderNumber ?? shortId(os.id)}
                           </Link>
                           {os.isFree && (
                             <Badge variant="yellow" label="Grátis" />
@@ -285,7 +330,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
                               "use server";
                               return deleteServiceOrder(os.id);
                             }}
-                            confirmMessage={`Apagar OS ${shortId(os.id)} de "${os.customer.fullName}"?\n\nTodos os dados desta OS (visitas, certificado, garantia, despesas vinculadas) serão removidos. Esta ação não pode ser desfeita.`}
+                            confirmMessage={`Apagar OS ${os.orderNumber ?? shortId(os.id)} de "${os.customer.fullName}"?\n\nTodos os dados desta OS (visitas, certificado, garantia, despesas vinculadas) serão removidos. Esta ação não pode ser desfeita.`}
                           />
                         </td>
                       </tr>
@@ -311,7 +356,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-xs font-bold" style={{ color: "var(--navy)" }}>
-                        {shortId(os.id)}
+                        {os.orderNumber ?? shortId(os.id)}
                       </span>
                       <Badge variant={statusToBadgeVariant(os.status)} label={STATUS_LABELS[os.status]} />
                     </div>

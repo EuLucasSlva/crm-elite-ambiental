@@ -101,7 +101,7 @@ export default async function ExecutionPage({ params }: PageProps) {
           {shortId(id)}
         </Link>
         <span>/</span>
-        <span className="text-gray-700">Execucao</span>
+        <span className="text-gray-700">Tratamento</span>
       </div>
 
       {/* OS summary */}
@@ -109,7 +109,7 @@ export default async function ExecutionPage({ params }: PageProps) {
         <div className="flex items-start justify-between gap-2 flex-wrap">
           <div>
             <h1 className="text-xl font-bold text-gray-900">
-              Execucao — OS {shortId(id)}
+              Tratamento — OS {shortId(id)}
             </h1>
             <p className="text-sm text-gray-500 mt-0.5">
               {SERVICE_TYPE_LABELS[order.serviceType]}

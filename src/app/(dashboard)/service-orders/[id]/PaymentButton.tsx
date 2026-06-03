@@ -13,9 +13,9 @@ interface PaymentButtonProps {
 
 const initialState: PaymentState = {};
 
-function addMonths(date: Date, n: number): Date {
+function addDays(date: Date, n: number): Date {
   const d = new Date(date);
-  d.setMonth(d.getMonth() + n);
+  d.setDate(d.getDate() + n);
   return d;
 }
 
@@ -29,6 +29,7 @@ export function PaymentButton({ orderId, currentStatus, currentPrice, isFree }: 
   const [price, setPrice] = useState(currentPrice?.toString() ?? "");
   const [mode, setMode] = useState<"avista" | "parcelado">("avista");
   const [installments, setInstallments] = useState("2");
+  const [intervalDays, setIntervalDays] = useState("30");
   const [firstDueDate, setFirstDueDate] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
@@ -42,10 +43,12 @@ export function PaymentButton({ orderId, currentStatus, currentPrice, isFree }: 
   const installmentCount = Math.max(1, parseInt(installments) || 2);
   const installmentAmount = installmentCount > 0 ? priceNum / installmentCount : 0;
 
+  const intervalDaysNum = parseInt(intervalDays) || 30;
+
   const preview = mode === "parcelado" && priceNum > 0 && firstDueDate
     ? Array.from({ length: installmentCount }, (_, i) => ({
         n: i + 1,
-        date: addMonths(new Date(firstDueDate + "T12:00:00"), i),
+        date: addDays(new Date(firstDueDate + "T12:00:00"), i * intervalDaysNum),
         amount: installmentAmount,
       }))
     : [];
@@ -72,6 +75,7 @@ export function PaymentButton({ orderId, currentStatus, currentPrice, isFree }: 
             <>
               <input type="hidden" name="installments" value={installmentCount} />
               <input type="hidden" name="firstDueDate" value={firstDueDate} />
+              <input type="hidden" name="intervalDays" value={intervalDaysNum} />
             </>
           )}
 
@@ -137,6 +141,21 @@ export function PaymentButton({ orderId, currentStatus, currentPrice, isFree }: 
                   className="rounded-lg border px-3 py-1.5 text-sm w-24"
                   style={{ borderColor: "#d0d5e8", background: "var(--white)", color: "var(--text)" }}
                 />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                  Intervalo entre parcelas
+                </label>
+                <select
+                  value={intervalDays}
+                  onChange={(e) => setIntervalDays(e.target.value)}
+                  className="rounded-lg border px-3 py-1.5 text-sm"
+                  style={{ borderColor: "#d0d5e8", background: "var(--white)", color: "var(--text)" }}
+                >
+                  <option value="15">15 dias</option>
+                  <option value="20">20 dias</option>
+                  <option value="30">30 dias</option>
+                </select>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>

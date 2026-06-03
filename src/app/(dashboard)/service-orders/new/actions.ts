@@ -10,6 +10,7 @@ const serviceOrderSchema = z.object({
   customerId: z.string().min(1, "Selecione um cliente"),
   serviceType: z.string().min(1, "Selecione um tipo"),
   isFree: z.coerce.boolean().default(false),
+  cleanWaterTank: z.coerce.boolean().default(false),
   technicianId: z.string().optional(),
   managerId: z.string().optional(),
   pestTypes: z.string().optional(),
@@ -36,6 +37,7 @@ export async function createServiceOrder(
     customerId: formData.get("customerId"),
     serviceType: formData.get("serviceType"),
     isFree: formData.get("isFree") === "true",
+    cleanWaterTank: formData.get("cleanWaterTank") === "true",
     technicianId: formData.get("technicianId") || undefined,
     managerId: formData.get("managerId") || undefined,
     pestTypes: formData.get("pestTypes") || undefined,
@@ -73,11 +75,21 @@ export async function createServiceOrder(
     ? (data.serviceType as "INSPECTION" | "TREATMENT" | "RETURN")
     : "INSPECTION"; // fallback for custom types stored as notes
 
+  // Generate sequential order number: NN + MM + YY (e.g. "060126" = 6th OS, Jan 2026)
+  const count = await prisma.serviceOrder.count();
+  const now = new Date();
+  const orderNumber =
+    String(count + 1).padStart(2, "0") +
+    String(now.getMonth() + 1).padStart(2, "0") +
+    String(now.getFullYear()).slice(-2);
+
   const order = await prisma.serviceOrder.create({
     data: {
+      orderNumber,
       customerId: data.customerId,
       serviceType: serviceTypeValue,
       isFree: data.isFree,
+      cleanWaterTank: data.cleanWaterTank,
       technicianId: data.technicianId || null,
       managerId: data.managerId || null,
       pestTypes: pestTypesArray,

@@ -44,7 +44,7 @@ export async function addInsumo(
   const { stockItemId, productName, location, doseApplied, unit } = parsed.data;
 
   const [order, stockItem] = await Promise.all([
-    prisma.serviceOrder.findUnique({ where: { id: orderId }, select: { id: true, cost: true, technicianId: true } }),
+    prisma.serviceOrder.findUnique({ where: { id: orderId }, select: { id: true, technicianId: true } }),
     prisma.stockItem.findUnique({ where: { id: stockItemId }, select: { quantity: true, unitCost: true, expiryDate: true, name: true } }),
   ]);
 
@@ -55,7 +55,6 @@ export async function addInsumo(
 
   const now = new Date();
   const unitCost = stockItem.unitCost;
-  const movementCost = doseApplied * unitCost;
   const techId = order.technicianId ?? session.user.id;
 
   await prisma.$transaction(async (tx) => {
@@ -99,11 +98,6 @@ export async function addInsumo(
     await tx.stockItem.update({
       where: { id: stockItemId },
       data: { quantity: { decrement: doseApplied } },
-    });
-
-    await tx.serviceOrder.update({
-      where: { id: orderId },
-      data: { cost: (order.cost ?? 0) + movementCost, updatedAt: now },
     });
   });
 
@@ -320,6 +314,7 @@ export async function updatePaymentStatus(
     price: z.coerce.number().min(0).max(9_999_999).optional().nullable(),
     installments: z.coerce.number().int().min(1).max(60).optional().nullable(),
     firstDueDate: z.string().optional().nullable(),
+    intervalDays: z.coerce.number().int().min(1).max(365).optional().nullable(),
   });
 
   const paymentParsed = paymentSchema.safeParse({
@@ -328,10 +323,12 @@ export async function updatePaymentStatus(
     price: formData.get("price") || undefined,
     installments: formData.get("installments") || undefined,
     firstDueDate: formData.get("firstDueDate") || undefined,
+    intervalDays: formData.get("intervalDays") || undefined,
   });
   if (!paymentParsed.success) return { error: "Dados inválidos." };
 
   const { id, paymentStatus: newStatus, installments, firstDueDate } = paymentParsed.data;
+  const intervalDays = paymentParsed.data.intervalDays ?? 30;
   const price = paymentParsed.data.price;
 
   const order = await prisma.serviceOrder.findUnique({
@@ -363,27 +360,28 @@ export async function updatePaymentStatus(
   await prisma.$transaction(async (tx) => {
     await tx.serviceOrder.update({ where: { id }, data });
 
-    // Create installments if parcelado and not already created
-    if (isParcelado && newStatus === "PAID" && firstDueDate) {
-      // Remove existing installments first
+    // Always delete existing installments when parcelado (re-edit safe)
+    if (isParcelado) {
       await tx.installment.deleteMany({ where: { serviceOrderId: id } });
 
-      const installmentAmount = effectivePrice / installments;
-      const baseDate = new Date(firstDueDate);
+      if (firstDueDate) {
+        const installmentAmount = effectivePrice / installments;
+        const baseDate = new Date(firstDueDate + "T12:00:00");
 
-      for (let i = 0; i < installments; i++) {
-        const dueDate = new Date(baseDate);
-        dueDate.setMonth(dueDate.getMonth() + i);
+        for (let i = 0; i < installments; i++) {
+          const dueDate = new Date(baseDate);
+          dueDate.setDate(dueDate.getDate() + i * intervalDays);
 
-        await tx.installment.create({
-          data: {
-            serviceOrderId: id,
-            number: i + 1,
-            amount: installmentAmount,
-            dueDate,
-            status: "PENDING",
-          },
-        });
+          await tx.installment.create({
+            data: {
+              serviceOrderId: id,
+              number: i + 1,
+              amount: installmentAmount,
+              dueDate,
+              status: "PENDING",
+            },
+          });
+        }
       }
     } else if (newStatus !== "PAID") {
       // Reset installments if reverting payment

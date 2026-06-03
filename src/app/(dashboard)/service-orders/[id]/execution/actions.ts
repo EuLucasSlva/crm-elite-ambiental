@@ -169,15 +169,6 @@ export async function finalizeExecution(
     }
   }
 
-  // Compute total OS cost from insumos
-  let totalCost = 0;
-  for (const point of points) {
-    if (point.stockItemId) {
-      const data = stockItemData.get(point.stockItemId);
-      if (data) totalCost += point.doseApplied * data.unitCost;
-    }
-  }
-
   // All good — run in transaction
   await prisma.$transaction(async (tx) => {
     // 1. Create the TechnicalVisit
@@ -226,13 +217,12 @@ export async function finalizeExecution(
       }
     }
 
-    // 3. Update service order status + cost
+    // 3. Update service order status (cost NOT updated — insumos are illustrative only)
     await tx.serviceOrder.update({
       where: { id: serviceOrderId },
       data: {
         status: "SERVICE_EXECUTED",
         executedAt: now,
-        ...(totalCost > 0 ? { cost: totalCost } : {}),
       },
     });
   });

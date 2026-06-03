@@ -194,7 +194,7 @@ export function ExecutionForm({
     return (
       <div className="rounded-xl border border-green-300 bg-green-50 p-6 text-center">
         <p className="text-green-700 font-semibold">
-          Execucao registrada com sucesso! Redirecionando...
+          Tratamento registrado com sucesso! Redirecionando...
         </p>
       </div>
     );
@@ -510,12 +510,12 @@ export function ExecutionForm({
             ? "Salvando..."
             : !canFinalize
               ? "Registre a chegada primeiro"
-              : `Finalizar Execucao${points.length > 0 ? ` (${points.length} ponto${points.length !== 1 ? "s" : ""})` : ""}`}
+              : `Finalizar Tratamento${points.length > 0 ? ` (${points.length} ponto${points.length !== 1 ? "s" : ""})` : ""}`}
         </button>
 
         {!canFinalize && (
           <p className="mt-2 text-center text-xs text-gray-400">
-            O check-in e obrigatorio para finalizar a execucao.
+            O check-in e obrigatorio para finalizar o tratamento.
           </p>
         )}
       </form>

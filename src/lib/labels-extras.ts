@@ -10,6 +10,8 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   MAINTENANCE: "Manutenção",
   MARKETING: "Marketing",
   TAXES: "Impostos",
+  FOOD: "Alimentação",
+  DAILY_PAYMENT: "Pagamento de diária",
   OTHER: "Outros",
 };
 

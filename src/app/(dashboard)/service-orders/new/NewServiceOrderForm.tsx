@@ -99,6 +99,7 @@ export function NewServiceOrderForm({
   const [isSearching, setIsSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isFree, setIsFree] = useState(false);
+  const [cleanWaterTank, setCleanWaterTank] = useState(false);
   const [selectedPests, setSelectedPests] = useState<string[]>([]);
   const [pestOptions, setPestOptions] = useState(DEFAULT_PEST_OPTIONS);
   const [customPestInput, setCustomPestInput] = useState("");
@@ -444,6 +445,36 @@ export function NewServiceOrderForm({
           value={selectedPests.join(",")}
         />
         <FieldError errors={e.pestTypes} />
+
+        {/* Limpeza de Caixa d'Água */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-sm text-gray-500 mb-3">Serviço adicional:</p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={cleanWaterTank}
+              onClick={() => setCleanWaterTank((v) => !v)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                cleanWaterTank ? "bg-blue-600" : "bg-gray-200"
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${
+                  cleanWaterTank ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
+            <label className="text-sm font-medium text-gray-700">
+              Limpeza de Caixa d&apos;Água
+            </label>
+          </div>
+          <input
+            type="hidden"
+            name="cleanWaterTank"
+            value={cleanWaterTank ? "true" : "false"}
+          />
+        </div>
       </section>
 
       {/* Section: Equipe */}

@@ -99,6 +99,7 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
 
   if (!order) notFound();
 
+  const orderLabel = order.orderNumber ?? shortId(order.id);
   const userRole = session?.user?.role as Role | undefined;
 
   // Determine which transitions are available for the current user
@@ -121,11 +122,11 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
               Ordens de Serviço
             </Link>
             <span>/</span>
-            <span className="font-mono text-gray-700">{shortId(order.id)}</span>
+            <span className="font-mono text-gray-700">{orderLabel}</span>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold text-gray-900">
-              OS {shortId(order.id)}
+              OS {orderLabel}
             </h1>
             <span
               className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${STATUS_COLORS[order.status]}`}
@@ -156,7 +157,7 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
                 "use server";
                 return deleteServiceOrder(order.id);
               }}
-              confirmMessage={`Apagar OS ${shortId(order.id)}?\n\nTodos os dados desta OS (visitas, certificado, garantia, despesas vinculadas) serão removidos. Esta ação não pode ser desfeita.`}
+              confirmMessage={`Apagar OS ${orderLabel}?\n\nTodos os dados desta OS (visitas, certificado, garantia, despesas vinculadas) serão removidos. Esta ação não pode ser desfeita.`}
               redirectTo="/service-orders"
               label="Apagar OS"
             />

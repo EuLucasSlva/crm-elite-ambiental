@@ -17,7 +17,7 @@ export const STATUS_LABELS: Record<ServiceOrderStatus, string> = {
   QUOTE_APPROVED: "Orçamento Aprovado",
   QUOTE_REJECTED: "Orçamento Recusado",
   SERVICE_SCHEDULED: "Serviço Agendado",
-  SERVICE_EXECUTED: "Serviço Executado",
+  SERVICE_EXECUTED: "Tratamento Executado",
   CERTIFICATE_ISSUED: "Certificado Emitido",
   WARRANTY_ACTIVE: "Garantia Ativa",
   CLOSED: "Encerrado",
