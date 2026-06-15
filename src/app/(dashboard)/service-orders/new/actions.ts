@@ -17,6 +17,7 @@ const serviceOrderSchema = z.object({
   scheduledAt: z.string().optional(),
   notes: z.string().optional(),
   price: z.coerce.number().min(0).max(9_999_999).optional().nullable(),
+  visitIntervalDays: z.coerce.number().int().refine((v) => [15, 30, 60, 90, 180].includes(v), "Periodicidade inválida").default(90),
 });
 
 export type NewServiceOrderState = {
@@ -44,6 +45,7 @@ export async function createServiceOrder(
     scheduledAt: formData.get("scheduledAt") || undefined,
     notes: formData.get("notes") || undefined,
     price: formData.get("price") || undefined,
+    visitIntervalDays: formData.get("visitIntervalDays") || undefined,
   };
 
   const parsed = serviceOrderSchema.safeParse(raw);
@@ -97,6 +99,7 @@ export async function createServiceOrder(
       notes: data.notes || null,
       status: "LEAD_CAPTURED",
       price: data.price ?? null,
+      visitIntervalDays: data.visitIntervalDays,
     },
     select: { id: true },
   });

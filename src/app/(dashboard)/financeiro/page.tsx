@@ -1,4 +1,3 @@
-import React from "react";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
@@ -6,8 +5,8 @@ import { redirect } from "next/navigation";
 import { formatCurrency } from "@/lib/format";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { KpiCard } from "@/components/ui/KpiCard";
-import { Badge } from "@/components/ui/Badge";
 import { FinanceCharts } from "./FinanceCharts";
+import { RecentOrdersTable } from "./RecentOrdersTable";
 import type { Role } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
@@ -178,27 +177,91 @@ async function getFinancialReport() {
     .sort((a, b) => b.revenue - a.revenue);
 
   // ── Recent OS (paid + pending + overdue) ──────────────────────────────────
-  const recentPaid = await prisma.serviceOrder.findMany({
+  const recentOrders = await prisma.serviceOrder.findMany({
     where: {
       paymentStatus: { in: ["PAID", "PENDING", "OVERDUE"] },
       isFree: false,
       price: { gt: 0 },
     },
     orderBy: { updatedAt: "desc" },
-    take: 15,
+    take: 30,
     select: {
       id: true,
+      orderNumber: true,
       price: true,
       cost: true,
       paidAt: true,
       paymentStatus: true,
       serviceType: true,
+      scheduledAt: true,
+      visitIntervalDays: true,
       installmentCount: true,
       customer: { select: { fullName: true } },
       technician: { select: { name: true } },
-      warranty: { select: { expiresAt: true } },
+      installments: {
+        where: { status: { in: ["PENDING", "OVERDUE"] } },
+        orderBy: { dueDate: "asc" },
+        select: { dueDate: true },
+      },
     },
   });
+
+  // Build rows for the recent-orders table, computing next visits + due date.
+  const todayMs = Date.now();
+  const recentRows = recentOrders.map((o) => {
+    // "A vencer" de pagamento: só a próxima parcela pendente/atrasada.
+    // Não usamos a garantia aqui — garantia não é vencimento de pagamento.
+    const dueDate = o.installments[0]?.dueDate ?? null;
+
+    // próximas 6 visitas FUTURAS a partir do agendamento, no intervalo definido.
+    // Começa da primeira ocorrência futura, garantindo sempre 6 datas.
+    const nextVisits: string[] = [];
+    if (o.scheduledAt) {
+      const interval = o.visitIntervalDays || 90;
+      const start = new Date(o.scheduledAt).getTime();
+      const intervalMs = interval * 86_400_000;
+      // quantas ocorrências já passaram desde o agendamento
+      const elapsed = Math.max(0, Math.ceil((todayMs - start) / intervalMs));
+      for (let k = 1; k <= 6; k++) {
+        const d = new Date(o.scheduledAt);
+        d.setDate(d.getDate() + interval * (elapsed + k));
+        nextVisits.push(d.toISOString());
+      }
+    }
+
+    return {
+      id: o.id,
+      orderLabel: o.orderNumber ?? o.id.slice(0, 6),
+      customerName: o.customer.fullName,
+      technicianName: o.technician?.name ?? null,
+      serviceType: o.serviceType,
+      price: o.price,
+      cost: o.cost,
+      profit: (o.price ?? 0) - (o.cost ?? 0),
+      paymentStatus: o.paymentStatus,
+      paidAt: o.paidAt?.toISOString() ?? null,
+      dueDate: dueDate?.toISOString() ?? null,
+      nextVisits,
+    };
+  });
+
+  // Ordena: pendentes/atrasadas por data a vencer (mais próxima primeiro),
+  // pagas vão para o fim ordenadas por data de pagamento decrescente.
+  const recentPaid = recentRows.sort((a, b) => {
+    const aPaid = a.paymentStatus === "PAID";
+    const bPaid = b.paymentStatus === "PAID";
+    if (aPaid !== bPaid) return aPaid ? 1 : -1; // não pagas primeiro
+    if (!aPaid && !bPaid) {
+      // ambas a vencer: mais próxima primeiro (sem data vai pro fim)
+      const aT = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+      const bT = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+      return aT - bT;
+    }
+    // ambas pagas: mais recente primeiro
+    const aT = a.paidAt ? new Date(a.paidAt).getTime() : 0;
+    const bT = b.paidAt ? new Date(b.paidAt).getTime() : 0;
+    return bT - aT;
+  }).slice(0, 15);
 
   // ── Computed summary ──────────────────────────────────────────────────────
   const revenueThis = thisMonthAgg.revenue;
@@ -433,102 +496,9 @@ export default async function FinanceiroPage() {
         </SectionCard>
       </div>
 
-      {/* Recent OS — paid, pending, overdue */}
+      {/* Recent OS — paid, pending, overdue (clicável → cronograma de visitas) */}
       <SectionCard title="Últimas OS Financeiras">
-        <div className="table-scroll">
-          <table className="table-hover w-full text-sm">
-            <thead>
-              <tr>
-                {["Cliente", "Tipo", "Técnico", "Valor", "Custo", "Lucro", "A vencer / Pago em"].map((h) => (
-                  <th
-                    key={h}
-                    className="text-left pb-3 text-xs font-bold uppercase tracking-wide border-b px-2"
-                    style={{ color: "var(--text-muted)", borderColor: "#d0d5e8" }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {d.recentPaid.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-2 py-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-                    Nenhuma OS registrada ainda.
-                  </td>
-                </tr>
-              ) : (
-                d.recentPaid.map((o) => {
-                  const profit = (o.price ?? 0) - (o.cost ?? 0);
-
-                  // "A vencer / Pago em" cell
-                  let dueDateCell: React.ReactNode;
-                  if (o.paymentStatus === "PAID") {
-                    dueDateCell = (
-                      <span style={{ color: "var(--text-muted)" }}>
-                        {o.paidAt ? new Date(o.paidAt).toLocaleDateString("pt-BR") : "—"}
-                      </span>
-                    );
-                  } else if (o.paymentStatus === "OVERDUE") {
-                    dueDateCell = (
-                      <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold"
-                        style={{ background: "#fee2e2", color: "#dc2626" }}
-                      >
-                        Em atraso
-                      </span>
-                    );
-                  } else {
-                    // PENDING — show warranty expiresAt as due date if available
-                    const dueDate = o.warranty?.expiresAt
-                      ? new Date(o.warranty.expiresAt).toLocaleDateString("pt-BR")
-                      : null;
-                    dueDateCell = dueDate ? (
-                      <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold"
-                        style={{ background: "#fef3c7", color: "#d97706" }}
-                      >
-                        {dueDate}
-                      </span>
-                    ) : (
-                      <span style={{ color: "var(--text-muted)" }}>—</span>
-                    );
-                  }
-
-                  return (
-                    <tr key={o.id} className="border-b last:border-0" style={{ borderColor: "#dde1ed" }}>
-                      <td className="px-2 py-2.5 font-medium max-w-[140px]" style={{ color: "var(--text)" }}>
-                        <span className="block truncate" title={o.customer.fullName}>
-                          {o.customer.fullName}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2.5">
-                        <Badge variant="blue" label={SERVICE_TYPE_PT[o.serviceType] ?? o.serviceType} />
-                      </td>
-                      <td className="px-2 py-2.5 text-xs max-w-[100px]" style={{ color: "var(--text-muted)" }}>
-                        <span className="block truncate" title={o.technician?.name ?? "—"}>
-                          {o.technician?.name ?? "—"}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2.5 font-semibold" style={{ color: "var(--navy)" }}>
-                        {formatCurrency(o.price)}
-                      </td>
-                      <td className="px-2 py-2.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                        {formatCurrency(o.cost)}
-                      </td>
-                      <td className="px-2 py-2.5 font-semibold" style={{ color: profit >= 0 ? "#059669" : "#ef4444" }}>
-                        {formatCurrency(profit)}
-                      </td>
-                      <td className="px-2 py-2.5 text-xs">
-                        {dueDateCell}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+        <RecentOrdersTable rows={d.recentPaid} />
       </SectionCard>
     </div>
   );

@@ -360,6 +360,25 @@ export function NewServiceOrderForm({
           </div>
 
           <div>
+            <Label htmlFor="visitIntervalDays">Periodicidade das próximas visitas</Label>
+            <select
+              id="visitIntervalDays"
+              name="visitIntervalDays"
+              defaultValue="90"
+              className={inputCls}
+            >
+              <option value="15">A cada 15 dias</option>
+              <option value="30">A cada 30 dias</option>
+              <option value="60">A cada 60 dias</option>
+              <option value="90">A cada 90 dias (3 meses) — padrão</option>
+              <option value="180">A cada 180 dias (6 meses)</option>
+            </select>
+            <p className="mt-1 text-xs text-gray-400">
+              Define quando as próximas visitas serão sugeridas a partir do agendamento.
+            </p>
+          </div>
+
+          <div>
             <Label htmlFor="price">Valor do Serviço (R$)</Label>
             <input
               id="price"

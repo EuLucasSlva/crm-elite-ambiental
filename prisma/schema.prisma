@@ -216,6 +216,7 @@ model ServiceOrder {
   updatedAt    DateTime           @updatedAt
 
   cleanWaterTank Boolean @default(false)
+  visitIntervalDays Int  @default(90)  // periodicidade das próximas visitas (15/30/60/90/180)
 
   // Financial fields
   price         Float?        // Value charged to the client (R$)
