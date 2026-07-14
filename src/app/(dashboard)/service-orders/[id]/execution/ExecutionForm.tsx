@@ -95,6 +95,8 @@ export function ExecutionForm({
 
   // Signature
   const [signatureData, setSignatureData] = useState<string>("");
+  const [sigMode, setSigMode] = useState<"draw" | "type">("draw");
+  const [typedName, setTypedName] = useState<string>("");
 
   // Handle check-in
   function handleCheckIn() {
@@ -170,10 +172,13 @@ export function ExecutionForm({
     setPoints((prev) => prev.filter((_, i) => i !== index));
   }
 
-  // Signature
+  // Signature — dois modos: desenhar na tela ou digitar o nome.
+  // Desenhada é salva como data URL (imagem); digitada como texto puro.
+  // A distinção na exibição é feita pelo prefixo "data:image".
   function handleClearSignature() {
     sigCanvasRef.current?.clear();
     setSignatureData("");
+    setTypedName("");
   }
 
   function handleSaveSignature() {
@@ -181,6 +186,17 @@ export function ExecutionForm({
       const data = sigCanvasRef.current.toDataURL("image/png");
       setSignatureData(data);
     }
+  }
+
+  function handleSelectSigMode(mode: "draw" | "type") {
+    // Troca de modo descarta a assinatura anterior para não misturar os dois formatos.
+    setSigMode(mode);
+    handleClearSignature();
+  }
+
+  function handleTypedNameChange(value: string) {
+    setTypedName(value);
+    setSignatureData(value.trim());
   }
 
   // Redirect on success — useEffect avoids side-effect in render path
@@ -441,17 +457,75 @@ export function ExecutionForm({
           3. Assinatura do Cliente
         </h2>
 
-        <div className="rounded-lg border-2 border-dashed border-gray-300 overflow-hidden">
-          <SignatureCanvas
-            ref={sigCanvasRef}
-            penColor="#1f2937"
-            canvasProps={{
-              className: "w-full",
-              style: { height: "180px", touchAction: "none" },
-            }}
-            onEnd={handleSaveSignature}
-          />
+        {/* Seletor de modo */}
+        <div className="mb-3 inline-flex rounded-lg border border-gray-300 p-0.5 bg-gray-50">
+          <button
+            type="button"
+            onClick={() => handleSelectSigMode("draw")}
+            className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
+              sigMode === "draw"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            ✍ Desenhar
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSelectSigMode("type")}
+            className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
+              sigMode === "type"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            ⌨ Digitar
+          </button>
         </div>
+
+        {sigMode === "draw" ? (
+          <div className="rounded-lg border-2 border-dashed border-gray-300 overflow-hidden">
+            <SignatureCanvas
+              ref={sigCanvasRef}
+              penColor="#1f2937"
+              canvasProps={{
+                className: "w-full",
+                style: { height: "180px", touchAction: "none" },
+              }}
+              onEnd={handleSaveSignature}
+            />
+          </div>
+        ) : (
+          <div>
+            <input
+              type="text"
+              value={typedName}
+              onChange={(ev) => handleTypedNameChange(ev.target.value)}
+              placeholder="Digite o nome completo do cliente"
+              maxLength={80}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 transition"
+            />
+            {/* Pré-visualização de como a assinatura sairá no relatório */}
+            <div className="mt-2 flex h-[120px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50">
+              {typedName.trim() ? (
+                <span
+                  className="text-gray-800"
+                  style={{
+                    fontFamily: "'Dancing Script', 'Segoe Script', 'Brush Script MT', cursive",
+                    fontSize: "2.25rem",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {typedName.trim()}
+                </span>
+              ) : (
+                <span className="text-sm text-gray-400">
+                  A assinatura aparecerá aqui
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-3 flex items-center justify-between">
           <button
@@ -467,7 +541,9 @@ export function ExecutionForm({
             </span>
           ) : (
             <span className="text-sm text-gray-400">
-              Peça ao cliente para assinar acima
+              {sigMode === "draw"
+                ? "Peça ao cliente para assinar acima"
+                : "Digite o nome do cliente acima"}
             </span>
           )}
         </div>

@@ -28,6 +28,12 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
       manager: { select: { name: true } },
       certificate: { select: { issuedAt: true, technicalResponsible: true } },
       warranty: { select: { startsAt: true, expiresAt: true } },
+      technicalVisits: {
+        where: { customerSignature: { not: null } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { customerSignature: true, checkOutAt: true },
+      },
       stockMovements: {
         where: { delta: { lt: 0 } },
         orderBy: { performedAt: "asc" },
@@ -42,6 +48,12 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
   if (!order) notFound();
 
   const orderLabel = order.orderNumber ?? shortId(order.id);
+
+  // Assinatura do cliente coletada na execução.
+  // Desenhada = data URL de imagem; digitada = texto puro (renderizado em fonte cursiva).
+  const signature = order.technicalVisits[0]?.customerSignature ?? null;
+  const signedAt = order.technicalVisits[0]?.checkOutAt ?? null;
+  const isDrawnSignature = signature?.startsWith("data:image") ?? false;
 
   const scheduledDate = order.scheduledAt
     ? order.scheduledAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
@@ -160,9 +172,37 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
           color: #1e3054;
         }
 
+        /* ── SIGNATURES ── */
+        .sig-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 32px;
+          margin-top: 8px;
+        }
+        .sig-box { display: flex; flex-direction: column; }
+        .sig-area {
+          height: 90px;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          padding-bottom: 4px;
+          overflow: hidden;
+        }
+        .sig-img { max-height: 84px; max-width: 100%; object-fit: contain; }
+        .sig-typed {
+          font-family: 'Dancing Script', 'Segoe Script', 'Brush Script MT', cursive;
+          font-size: 30px;
+          color: #111827;
+          line-height: 1.2;
+          text-align: center;
+        }
+        .sig-line { border-top: 1.5px solid #374151; padding-top: 6px; text-align: center; }
+        .sig-label { font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.06em; }
+        .sig-name { font-size: 12px; color: #374151; font-weight: 600; margin-top: 2px; }
+        .sig-meta { font-size: 9px; color: #9ca3af; margin-top: 2px; }
+
         /* ── FOOTER ── */
         .ftr {
-          margin-top: auto;
           padding-top: 14px;
           border-top: 1px solid #e5e7eb;
           display: flex;
@@ -250,6 +290,45 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
             <p style={{ fontSize: "14px", lineHeight: "1.6", color: "#374151", whiteSpace: "pre-wrap" }}>{order.notes}</p>
           </div>
         )}
+
+        {/* Assinaturas */}
+        <div className="card" style={{ marginTop: "auto" }}>
+          <div className="card-title">Assinaturas</div>
+          <div className="sig-grid">
+            {/* Cliente — usa a assinatura coletada na execução, se houver */}
+            <div className="sig-box">
+              <div className="sig-area">
+                {signature ? (
+                  isDrawnSignature ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={signature} alt="Assinatura do cliente" className="sig-img" />
+                  ) : (
+                    <span className="sig-typed">{signature}</span>
+                  )
+                ) : null}
+              </div>
+              <div className="sig-line">
+                <div className="sig-label">Assinatura do Cliente</div>
+                <div className="sig-name">{order.customer.fullName}</div>
+                {signature && signedAt && (
+                  <div className="sig-meta">Assinado em {formatDate(signedAt)}</div>
+                )}
+                {!signature && (
+                  <div className="sig-meta">Assinatura pendente</div>
+                )}
+              </div>
+            </div>
+
+            {/* Técnico — espaço para assinar a caneta */}
+            <div className="sig-box">
+              <div className="sig-area" />
+              <div className="sig-line">
+                <div className="sig-label">Tecnico Responsavel</div>
+                <div className="sig-name">{order.technician?.name ?? "—"}</div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Footer */}
         <div className="ftr">
