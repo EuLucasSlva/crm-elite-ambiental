@@ -31,6 +31,17 @@ const DEFAULT_PEST_OPTIONS = [
   "Outros",
 ];
 
+const DEFAULT_AREA_OPTIONS = [
+  "Cozinha",
+  "Despensa / Depósito de alimentos",
+  "Refeitório",
+  "Sala",
+  "Banheiro",
+  "Área externa",
+  "Depósito",
+  "Garagem",
+];
+
 const inputCls =
   "block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200";
 
@@ -103,6 +114,9 @@ export function NewServiceOrderForm({
   const [selectedPests, setSelectedPests] = useState<string[]>([]);
   const [pestOptions, setPestOptions] = useState(DEFAULT_PEST_OPTIONS);
   const [customPestInput, setCustomPestInput] = useState("");
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
+  const [areaOptions, setAreaOptions] = useState(DEFAULT_AREA_OPTIONS);
+  const [customAreaInput, setCustomAreaInput] = useState("");
   const [serviceTypes, setServiceTypes] = useState(DEFAULT_SERVICE_TYPES);
   const [customServiceInput, setCustomServiceInput] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -168,6 +182,22 @@ export function NewServiceOrderForm({
       prev.includes(pest) ? prev.filter((p) => p !== pest) : [...prev, pest]
     );
   }, []);
+
+  const toggleArea = useCallback((area: string) => {
+    setSelectedAreas((prev) =>
+      prev.includes(area) ? prev.filter((a) => a !== area) : [...prev, area]
+    );
+  }, []);
+
+  const addCustomArea = useCallback(() => {
+    const name = customAreaInput.trim();
+    if (!name) return;
+    if (!areaOptions.includes(name)) {
+      setAreaOptions((prev) => [...prev, name]);
+    }
+    setSelectedAreas((prev) => (prev.includes(name) ? prev : [...prev, name]));
+    setCustomAreaInput("");
+  }, [customAreaInput, areaOptions]);
 
   const handleCustomerCreated = useCallback((customer: CustomerOption) => {
     setSelectedCustomer(customer);
@@ -494,6 +524,55 @@ export function NewServiceOrderForm({
             value={cleanWaterTank ? "true" : "false"}
           />
         </div>
+      </section>
+
+      {/* Section: Áreas a tratar */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-800 mb-4">
+          Áreas a Tratar
+        </h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Selecione os ambientes que serão tratados nesta ordem:
+        </p>
+        <div className="flex flex-wrap gap-2 mb-3">
+          {areaOptions.map((area) => (
+            <button
+              key={area}
+              type="button"
+              onClick={() => toggleArea(area)}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                selectedAreas.includes(area)
+                  ? "bg-green-600 text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              {area}
+            </button>
+          ))}
+        </div>
+        {/* Add custom area */}
+        <div className="flex gap-1.5 mt-1">
+          <input
+            type="text"
+            value={customAreaInput}
+            onChange={(e) => setCustomAreaInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomArea(); } }}
+            placeholder="Outra área..."
+            className="flex-1 max-w-xs rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-700 focus:border-green-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={addCustomArea}
+            className="rounded-lg bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600 hover:bg-gray-200 transition-colors"
+          >
+            + Adicionar
+          </button>
+        </div>
+        <input
+          type="hidden"
+          name="treatedAreas"
+          value={selectedAreas.join(",")}
+        />
       </section>
 
       {/* Section: Equipe */}

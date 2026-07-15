@@ -208,6 +208,7 @@ model ServiceOrder {
   technicianId String?
   managerId    String?
   pestTypes    String[]
+  treatedAreas String[]           // áreas tratadas: cozinha, despensa, refeitório, etc
   scheduledAt  DateTime?
   executedAt   DateTime?
   closedAt     DateTime?

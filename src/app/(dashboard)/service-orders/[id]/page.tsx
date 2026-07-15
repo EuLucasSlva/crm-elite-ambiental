@@ -228,6 +228,14 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
                   </dd>
                 </div>
               )}
+              {order.treatedAreas.length > 0 && (
+                <div className="sm:col-span-2 flex justify-between gap-2">
+                  <dt className="text-gray-500">Áreas tratadas</dt>
+                  <dd className="font-medium text-gray-800">
+                    {order.treatedAreas.join(", ")}
+                  </dd>
+                </div>
+              )}
             </dl>
           </section>
 

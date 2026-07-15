@@ -14,6 +14,7 @@ const serviceOrderSchema = z.object({
   technicianId: z.string().optional(),
   managerId: z.string().optional(),
   pestTypes: z.string().optional(),
+  treatedAreas: z.string().optional(),
   scheduledAt: z.string().optional(),
   notes: z.string().optional(),
   price: z.coerce.number().min(0).max(9_999_999).optional().nullable(),
@@ -42,6 +43,7 @@ export async function createServiceOrder(
     technicianId: formData.get("technicianId") || undefined,
     managerId: formData.get("managerId") || undefined,
     pestTypes: formData.get("pestTypes") || undefined,
+    treatedAreas: formData.get("treatedAreas") || undefined,
     scheduledAt: formData.get("scheduledAt") || undefined,
     notes: formData.get("notes") || undefined,
     price: formData.get("price") || undefined,
@@ -71,6 +73,13 @@ export async function createServiceOrder(
         .filter(Boolean)
     : [];
 
+  const treatedAreasArray = data.treatedAreas
+    ? data.treatedAreas
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean)
+    : [];
+
   // serviceType from form can be a custom string — map known values to enum, keep custom as-is
   const knownTypes = ["INSPECTION", "TREATMENT", "RETURN"];
   const serviceTypeValue = knownTypes.includes(data.serviceType)
@@ -95,6 +104,7 @@ export async function createServiceOrder(
       technicianId: data.technicianId || null,
       managerId: data.managerId || null,
       pestTypes: pestTypesArray,
+      treatedAreas: treatedAreasArray,
       scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       notes: data.notes || null,
       status: "LEAD_CAPTURED",
