@@ -220,6 +220,14 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
                   {order.manager?.name ?? "—"}
                 </dd>
               </div>
+              {order.serviceFor && (
+                <div className="sm:col-span-2 flex justify-between gap-2">
+                  <dt className="text-gray-500">Para quem é (unidade)</dt>
+                  <dd className="font-medium text-gray-800">
+                    {order.serviceFor}
+                  </dd>
+                </div>
+              )}
               {order.pestTypes.length > 0 && (
                 <div className="sm:col-span-2 flex justify-between gap-2">
                   <dt className="text-gray-500">Pragas</dt>

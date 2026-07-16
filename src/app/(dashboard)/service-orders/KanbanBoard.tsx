@@ -13,6 +13,7 @@ export type KanbanOrder = {
   serviceType: ServiceType;
   isFree: boolean;
   scheduledAt: Date | null;
+  serviceFor: string | null;
   customer: { fullName: string };
   technician: { name: string } | null;
 };
@@ -65,6 +66,14 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
   const orderMap = Object.fromEntries(orders.map((o) => [o.id, o]));
   const [cols, setCols] = useState<Record<string, string[]>>(() => buildInitialCols(orders));
   const [, startTransition] = useTransition();
+
+  // Busca — filtra cards por nome do cliente ou "para quem é".
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLowerCase();
+  const matches = (o: KanbanOrder) =>
+    !term ||
+    o.customer.fullName.toLowerCase().includes(term) ||
+    (o.serviceFor?.toLowerCase().includes(term) ?? false);
 
   // drag state — plain refs, no re-renders needed during drag
   const dragId = useRef<string | null>(null);
@@ -208,12 +217,30 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
   );
 
   return (
-    <div className="overflow-x-auto pb-4">
+    <div className="pb-4">
+      {/* Busca */}
+      <div className="mb-4 flex items-center gap-2">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por cliente ou unidade (para quem é)..."
+          className="flex-1 max-w-md rounded-full border px-4 py-2 text-sm outline-none focus:ring-2"
+          style={{ borderColor: "#d0d5e8", background: "var(--card-bg)", color: "var(--text)" }}
+        />
+        {term && (
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            filtrando por &quot;{search}&quot;
+          </span>
+        )}
+      </div>
+
+      <div className="overflow-x-auto">
       {/* Desktop */}
       <div className="hidden lg:block">
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(200px, 1fr))", gap: "1rem" }}>
           {COLUMNS.map((col) => {
-            const colOrders = cols[col.key].map((id) => orderMap[id]).filter(Boolean);
+            const colOrders = cols[col.key].map((id) => orderMap[id]).filter(Boolean).filter(matches);
             return (
               <KanbanColWrapper
                 key={col.key}
@@ -235,7 +262,7 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
       {/* Mobile */}
       <div className="flex lg:hidden gap-4 min-w-max">
         {COLUMNS.map((col) => {
-          const colOrders = cols[col.key].map((id) => orderMap[id]).filter(Boolean);
+          const colOrders = cols[col.key].map((id) => orderMap[id]).filter(Boolean).filter(matches);
           return (
             <div key={col.key} className="w-72 flex-shrink-0">
               <KanbanColWrapper
@@ -253,6 +280,7 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );
@@ -364,6 +392,13 @@ function KanbanColWrapper({
                 <p className="text-sm font-semibold leading-tight truncate" style={{ color: "var(--text)" }}>
                   {order.customer.fullName}
                 </p>
+
+                {/* Para quem é (unidade) */}
+                {order.serviceFor && (
+                  <p className="text-xs mt-0.5 font-medium truncate" style={{ color: "var(--navy)" }} title={order.serviceFor}>
+                    📍 {order.serviceFor}
+                  </p>
+                )}
 
                 {/* Service type */}
                 <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>

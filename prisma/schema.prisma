@@ -209,6 +209,9 @@ model ServiceOrder {
   managerId    String?
   pestTypes    String[]
   treatedAreas String[]           // áreas tratadas: cozinha, despensa, refeitório, etc
+  serviceFor   String?            // "para quem é": unidade/escola/posto do cliente
+  serviceAddress String?          // endereço da unidade (quando difere do cliente, ex: escolas)
+  team         String?            // equipe responsável (usado em importação em lote)
   scheduledAt  DateTime?
   executedAt   DateTime?
   closedAt     DateTime?

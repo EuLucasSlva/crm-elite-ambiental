@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { formatDate, shortId, formatCurrency } from "@/lib/format";
+import { formatDate, shortId } from "@/lib/format";
 import { SERVICE_TYPE_LABELS } from "@/lib/labels";
 import { PrintActions } from "./PrintActions";
 
@@ -232,9 +232,15 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
               <div className="field-label">Telefone / WhatsApp</div>
               <div className="field-value">{order.customer.phone || "—"}</div>
             </div>
+            {order.serviceFor && (
+              <div className="field field-full">
+                <div className="field-label">Unidade / Local Atendido</div>
+                <div className="field-value big">{order.serviceFor}</div>
+              </div>
+            )}
             <div className="field field-full">
               <div className="field-label">Endereco do Atendimento</div>
-              <div className="field-value">{address}</div>
+              <div className="field-value">{order.serviceAddress || address}</div>
             </div>
             <div className="field field-full">
               <div className="field-label">Areas Tratadas</div>
@@ -256,10 +262,6 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
             <div className="field">
               <div className="field-label">Tipo de Servico</div>
               <div className="field-value">{SERVICE_TYPE_LABELS[order.serviceType]}</div>
-            </div>
-            <div className="field">
-              <div className="field-label">Valor do Servico</div>
-              <div className="field-value">{order.isFree ? "Gratuito" : formatCurrency(order.price)}</div>
             </div>
             <div className="field">
               <div className="field-label">Data Agendada</div>

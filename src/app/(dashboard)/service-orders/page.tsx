@@ -94,6 +94,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
             serviceType: true,
             isFree: true,
             scheduledAt: true,
+            serviceFor: true,
             customer: { select: { fullName: true } },
             technician: { select: { name: true } },
           },
@@ -197,6 +198,15 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
               Lista
             </Link>
           </div>
+
+          {/* Importar em lote */}
+          <Link
+            href="/service-orders/import"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold shadow-sm transition-opacity hover:opacity-90"
+            style={{ background: "var(--card-bg)", border: "1px solid #d0d5e8", color: "var(--text-muted)" }}
+          >
+            ⬆ Importar em lote
+          </Link>
 
           {/* New OS */}
           <Link

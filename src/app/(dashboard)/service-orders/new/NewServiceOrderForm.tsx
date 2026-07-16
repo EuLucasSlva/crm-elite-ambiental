@@ -339,6 +339,22 @@ export function NewServiceOrderForm({
         <h2 className="text-base font-semibold text-gray-800 mb-4">
           Tipo de Serviço
         </h2>
+
+        {/* Para quem é esse serviço (unidade/escola/posto) */}
+        <div className="mb-4">
+          <Label htmlFor="serviceFor">Para quem é esse serviço? (unidade / local específico)</Label>
+          <input
+            id="serviceFor"
+            name="serviceFor"
+            type="text"
+            placeholder="Ex: Escola Mariazinha Congílio, Posto 3, Filial Centro..."
+            className={inputCls}
+          />
+          <p className="mt-1 text-xs text-gray-400">
+            Use quando o cliente tem vários locais (escolas, postos, filiais). Opcional.
+          </p>
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label htmlFor="serviceType" required>
