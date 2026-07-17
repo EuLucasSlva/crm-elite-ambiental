@@ -73,6 +73,7 @@ export async function finalizeExecution(
   const checkInAt = formData.get("checkInAt") as string | null;
   const notes = (formData.get("notes") as string) || null;
   const customerSignature = (formData.get("customerSignature") as string) || null;
+  const technicianSignature = (formData.get("technicianSignature") as string) || null;
   const pointsJson = formData.get("applicationPoints") as string;
 
   if (!serviceOrderId || !technicianId || !scheduledAt) {
@@ -180,6 +181,7 @@ export async function finalizeExecution(
         checkInAt: checkIn,
         checkOutAt: now,
         customerSignature: customerSignature || null,
+        technicianSignature: technicianSignature || null,
         notes,
         applicationPoints: {
           create: points.map((p) => ({

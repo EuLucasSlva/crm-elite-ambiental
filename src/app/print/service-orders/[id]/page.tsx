@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { formatDate, shortId } from "@/lib/format";
+import { formatDate, formatDateTime, shortId } from "@/lib/format";
 import { SERVICE_TYPE_LABELS } from "@/lib/labels";
 import { PrintActions } from "./PrintActions";
 
@@ -30,10 +30,14 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
       },
       technician: { select: { name: true } },
       technicalVisits: {
-        where: { customerSignature: { not: null } },
         orderBy: { createdAt: "desc" },
         take: 1,
-        select: { customerSignature: true, checkOutAt: true },
+        select: {
+          customerSignature: true,
+          technicianSignature: true,
+          checkInAt: true,
+          checkOutAt: true,
+        },
       },
       stockMovements: {
         where: { delta: { lt: 0 } },
@@ -50,18 +54,19 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
 
   const orderLabel = order.orderNumber ?? shortId(order.id);
 
-  // Assinatura do cliente coletada na execução.
+  const visit = order.technicalVisits[0];
+
+  // Assinaturas coletadas na execução.
   // Desenhada = data URL de imagem; digitada = texto puro (fonte cursiva).
-  const signature = order.technicalVisits[0]?.customerSignature ?? null;
-  const signedAt = order.technicalVisits[0]?.checkOutAt ?? null;
+  const signature = visit?.customerSignature ?? null;
+  const signedAt = visit?.checkOutAt ?? null;
   const isDrawnSignature = signature?.startsWith("data:image") ?? false;
 
-  const scheduledDate = order.scheduledAt
-    ? order.scheduledAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
-    : "—";
-  const scheduledTime = order.scheduledAt
-    ? order.scheduledAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-    : "—";
+  const techSignature = visit?.technicianSignature ?? null;
+  const isDrawnTechSignature = techSignature?.startsWith("data:image") ?? false;
+
+  const checkInAt = visit?.checkInAt ?? null;
+  const checkOutAt = visit?.checkOutAt ?? null;
 
   const address = [
     `${order.customer.street}, ${order.customer.number}`,
@@ -149,6 +154,7 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
         .field-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; }
         .field-value { font-size: 12.5px; font-weight: 600; color: #111827; line-height: 1.3; }
         .field-value.big { font-size: 15px; font-weight: 800; }
+        .field-value.accent { color: #1e3054; }
         .field-full { grid-column: 1 / -1; }
 
         .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
@@ -205,7 +211,7 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
           <div>
             <div className="hdr-logo">Elite Ambiental</div>
             <div className="hdr-tagline">Controle de Pragas e Dedetizacao</div>
-            <div className="hdr-date">Emitido em: {formatDate(new Date())}</div>
+            <div className="hdr-date">Emitido em: {formatDateTime(new Date())}</div>
           </div>
           <div className="hdr-os">
             <div className="hdr-os-label">Ordem de Servico</div>
@@ -264,12 +270,16 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
               <div className="field-value">{SERVICE_TYPE_LABELS[order.serviceType]}</div>
             </div>
             <div className="field">
-              <div className="field-label">Data Agendada</div>
-              <div className="field-value">{scheduledDate}</div>
+              <div className="field-label">Tecnico Responsavel</div>
+              <div className="field-value">{order.technician?.name ?? "—"}</div>
             </div>
             <div className="field">
-              <div className="field-label">Horario</div>
-              <div className="field-value">{scheduledTime}</div>
+              <div className="field-label">Data e Hora Agendada</div>
+              <div className="field-value accent">{order.scheduledAt ? formatDateTime(order.scheduledAt) : "—"}</div>
+            </div>
+            <div className="field">
+              <div className="field-label">Data e Hora do Check-in</div>
+              <div className="field-value accent">{checkInAt ? formatDateTime(checkInAt) : "—"}</div>
             </div>
             <div className="field field-full">
               <div className="field-label">Pragas Alvo</div>
@@ -331,12 +341,26 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
             e a conformidade do servico prestado pela Elite Ambiental.
           </p>
           <div className="sig-grid">
-            {/* Técnico */}
+            {/* Técnico — assinatura coletada na execução */}
             <div className="sig-box">
-              <div className="sig-area" />
+              <div className="sig-area">
+                {techSignature ? (
+                  isDrawnTechSignature ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={techSignature} alt="Assinatura do tecnico" className="sig-img" />
+                  ) : (
+                    <span className="sig-typed">{techSignature}</span>
+                  )
+                ) : null}
+              </div>
               <div className="sig-line">
                 <div className="sig-label">Assinatura do Tecnico</div>
                 <div className="sig-name">{order.technician?.name ?? "—"}</div>
+                {techSignature && checkOutAt ? (
+                  <div className="sig-meta">Assinado em {formatDate(checkOutAt)}</div>
+                ) : (
+                  <div className="sig-meta">Assinatura pendente</div>
+                )}
               </div>
             </div>
             {/* Cliente — assinatura coletada na execução */}

@@ -50,6 +50,7 @@ export function ExecutionForm({
 }: Props) {
   const router = useRouter();
   const sigCanvasRef = useRef<SignatureCanvas | null>(null);
+  const techSigCanvasRef = useRef<SignatureCanvas | null>(null);
 
   const [state, formAction, isPending] = useActionState(finalizeExecution, INITIAL);
 
@@ -93,10 +94,15 @@ export function ExecutionForm({
   // Notes
   const [notes, setNotes] = useState("");
 
-  // Signature
+  // Signature — cliente
   const [signatureData, setSignatureData] = useState<string>("");
   const [sigMode, setSigMode] = useState<"draw" | "type">("draw");
   const [typedName, setTypedName] = useState<string>("");
+
+  // Signature — técnico
+  const [techSignatureData, setTechSignatureData] = useState<string>("");
+  const [techSigMode, setTechSigMode] = useState<"draw" | "type">("draw");
+  const [techTypedName, setTechTypedName] = useState<string>("");
 
   // Handle check-in
   function handleCheckIn() {
@@ -199,6 +205,29 @@ export function ExecutionForm({
     setSignatureData(value.trim());
   }
 
+  // Assinatura do técnico (mesma lógica do cliente)
+  function handleClearTechSignature() {
+    techSigCanvasRef.current?.clear();
+    setTechSignatureData("");
+    setTechTypedName("");
+  }
+
+  function handleSaveTechSignature() {
+    if (techSigCanvasRef.current && !techSigCanvasRef.current.isEmpty()) {
+      setTechSignatureData(techSigCanvasRef.current.toDataURL("image/png"));
+    }
+  }
+
+  function handleSelectTechSigMode(mode: "draw" | "type") {
+    setTechSigMode(mode);
+    handleClearTechSignature();
+  }
+
+  function handleTechTypedNameChange(value: string) {
+    setTechTypedName(value);
+    setTechSignatureData(value.trim());
+  }
+
   // Redirect on success — useEffect avoids side-effect in render path
   useEffect(() => {
     if (state.success) {
@@ -217,6 +246,28 @@ export function ExecutionForm({
   }
 
   const canFinalize = checkInAt !== null;
+
+  // Inclui automaticamente o insumo que está preenchido mas ainda não foi
+  // adicionado à lista — evita perder o registro quando o técnico esquece
+  // de clicar "+ Adicionar Ponto" antes de finalizar.
+  const draftDose = parseFloat(pointForm.doseApplied);
+  const hasValidDraft =
+    pointForm.location.trim() !== "" &&
+    pointForm.productName.trim() !== "" &&
+    !isNaN(draftDose) &&
+    draftDose > 0;
+  const effectivePoints = hasValidDraft
+    ? [
+        ...points,
+        {
+          location: pointForm.location.trim(),
+          productName: pointForm.productName.trim(),
+          doseApplied: draftDose,
+          unit: pointForm.unit,
+          stockItemId: pointForm.stockItemId,
+        },
+      ]
+    : points;
 
   return (
     <div className="space-y-6">
@@ -549,6 +600,82 @@ export function ExecutionForm({
         </div>
       </section>
 
+      {/* ── Assinatura do Técnico ── */}
+      <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold text-gray-800 mb-4">
+          Assinatura do Técnico
+        </h2>
+
+        <div className="mb-3 inline-flex rounded-lg border border-gray-300 p-0.5 bg-gray-50">
+          <button
+            type="button"
+            onClick={() => handleSelectTechSigMode("draw")}
+            className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
+              techSigMode === "draw" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            ✍ Desenhar
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSelectTechSigMode("type")}
+            className={`rounded-md px-4 py-1.5 text-sm font-semibold transition-colors ${
+              techSigMode === "type" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            ⌨ Digitar
+          </button>
+        </div>
+
+        {techSigMode === "draw" ? (
+          <div className="rounded-lg border-2 border-dashed border-gray-300 overflow-hidden">
+            <SignatureCanvas
+              ref={techSigCanvasRef}
+              penColor="#1f2937"
+              canvasProps={{ className: "w-full", style: { height: "180px", touchAction: "none" } }}
+              onEnd={handleSaveTechSignature}
+            />
+          </div>
+        ) : (
+          <div>
+            <input
+              type="text"
+              value={techTypedName}
+              onChange={(ev) => handleTechTypedNameChange(ev.target.value)}
+              placeholder="Digite o nome completo do técnico"
+              maxLength={80}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200 transition"
+            />
+            <div className="mt-2 flex h-[120px] items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50">
+              {techTypedName.trim() ? (
+                <span className="text-gray-800" style={{ fontFamily: "'Dancing Script', 'Segoe Script', 'Brush Script MT', cursive", fontSize: "2.25rem", lineHeight: 1.2 }}>
+                  {techTypedName.trim()}
+                </span>
+              ) : (
+                <span className="text-sm text-gray-400">A assinatura aparecerá aqui</span>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={handleClearTechSignature}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            Limpar
+          </button>
+          {techSignatureData ? (
+            <span className="text-sm font-medium text-green-600">Assinatura capturada</span>
+          ) : (
+            <span className="text-sm text-gray-400">
+              {techSigMode === "draw" ? "Assine acima" : "Digite o nome do técnico acima"}
+            </span>
+          )}
+        </div>
+      </section>
+
       {/* ── Notes ── */}
       <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-gray-800 mb-3">
@@ -571,10 +698,11 @@ export function ExecutionForm({
         <input type="hidden" name="checkInAt" value={checkInAt ?? ""} />
         <input type="hidden" name="notes" value={notes} />
         <input type="hidden" name="customerSignature" value={signatureData} />
+        <input type="hidden" name="technicianSignature" value={techSignatureData} />
         <input
           type="hidden"
           name="applicationPoints"
-          value={JSON.stringify(points)}
+          value={JSON.stringify(effectivePoints)}
         />
 
         <button
@@ -586,7 +714,7 @@ export function ExecutionForm({
             ? "Salvando..."
             : !canFinalize
               ? "Registre a chegada primeiro"
-              : `Finalizar Tratamento${points.length > 0 ? ` (${points.length} ponto${points.length !== 1 ? "s" : ""})` : ""}`}
+              : `Finalizar Tratamento${effectivePoints.length > 0 ? ` (${effectivePoints.length} ponto${effectivePoints.length !== 1 ? "s" : ""})` : ""}`}
         </button>
 
         {!canFinalize && (
