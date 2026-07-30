@@ -40,7 +40,7 @@ export default async function ExportServiceOrdersPage() {
       </div>
 
       <form
-        action="/print/service-orders/batch"
+        action="/print/service-orders/full-batch"
         method="GET"
         target="_blank"
         className="space-y-5 rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
