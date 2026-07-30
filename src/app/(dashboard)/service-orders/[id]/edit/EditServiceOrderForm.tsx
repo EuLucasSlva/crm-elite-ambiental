@@ -5,6 +5,7 @@ import Link from "next/link";
 import { updateServiceOrder, type EditServiceOrderState } from "./actions";
 import { ROLE_LABELS } from "@/lib/labels";
 import type { ServiceType, Role } from "@prisma/client";
+import { formatAppDateTimeInput } from "@/lib/date-time";
 
 const inputCls =
   "block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200";
@@ -93,11 +94,8 @@ export function EditServiceOrderForm({ orderId, current, technicians }: Props) {
     setCustomServiceInput("");
   }, [customServiceInput, serviceTypes]);
 
-  // Format datetime-local value from Date
   const scheduledAtValue = current.scheduledAt
-    ? new Date(current.scheduledAt.getTime() - current.scheduledAt.getTimezoneOffset() * 60000)
-        .toISOString()
-        .slice(0, 16)
+    ? formatAppDateTimeInput(current.scheduledAt)
     : "";
 
   return (

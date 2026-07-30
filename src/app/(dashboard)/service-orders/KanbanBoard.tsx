@@ -3,7 +3,7 @@
 import { useState, useRef, useTransition } from "react";
 import Link from "next/link";
 import { STATUS_LABELS, SERVICE_TYPE_LABELS } from "@/lib/labels";
-import { shortId, formatDate } from "@/lib/format";
+import { shortId, formatDateTime } from "@/lib/format";
 import { moveKanbanCard } from "./[id]/actions";
 import type { ServiceOrderStatus, ServiceType } from "@prisma/client";
 
@@ -33,7 +33,7 @@ const COLUMNS: KanbanColumn[] = [
   { key: "orcamento", label: "Orçamento", statuses: ["QUOTE_CREATED", "QUOTE_APPROVED", "QUOTE_REJECTED"],     accentColor: "#f59e0b", headerBg: "#f59e0b", headerText: "#78350f" },
   { key: "agendado",  label: "Agendado",  statuses: ["SERVICE_SCHEDULED"],                                     accentColor: "#22c55e", headerBg: "#22c55e", headerText: "#fff" },
   { key: "executado", label: "Tratamento", statuses: ["SERVICE_EXECUTED", "CERTIFICATE_ISSUED"],                 accentColor: "#15803d", headerBg: "#15803d", headerText: "#fff" },
-  { key: "encerrado", label: "Encerrado", statuses: ["WARRANTY_ACTIVE", "CLOSED", "CANCELED"],                 accentColor: "#9ca3af", headerBg: "#9ca3af", headerText: "#fff" },
+  { key: "encerrado", label: "Concluídas", statuses: ["WARRANTY_ACTIVE", "CLOSED", "CANCELED"],              accentColor: "#9ca3af", headerBg: "#9ca3af", headerText: "#fff" },
 ];
 
 // Representative status to use when moving a card to each column
@@ -419,7 +419,7 @@ function KanbanColWrapper({
                   </span>
                   {order.scheduledAt && (
                     <span className="text-xs whitespace-nowrap flex-shrink-0" style={{ color: "var(--text-muted)" }}>
-                      {formatDate(order.scheduledAt)}
+                      {formatDateTime(order.scheduledAt)}
                     </span>
                   )}
                 </div>

@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { updatePaymentStatus, type PaymentState } from "./actions";
 import type { PaymentStatus } from "@prisma/client";
+import { addDaysToDateInput, formatAppDateInput } from "@/lib/date-time";
+import { formatDate } from "@/lib/format";
 
 interface PaymentButtonProps {
   orderId: string;
@@ -13,16 +15,6 @@ interface PaymentButtonProps {
 
 const initialState: PaymentState = {};
 
-function addDays(date: Date, n: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-}
-
-function fmtDate(d: Date): string {
-  return d.toLocaleDateString("pt-BR");
-}
-
 export function PaymentButton({ orderId, currentStatus, currentPrice, isFree }: PaymentButtonProps) {
   const [state, formAction, pending] = useActionState(updatePaymentStatus, initialState);
   const [showForm, setShowForm] = useState(false);
@@ -30,11 +22,9 @@ export function PaymentButton({ orderId, currentStatus, currentPrice, isFree }: 
   const [mode, setMode] = useState<"avista" | "parcelado">("avista");
   const [installments, setInstallments] = useState("2");
   const [intervalDays, setIntervalDays] = useState("30");
-  const [firstDueDate, setFirstDueDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d.toISOString().split("T")[0];
-  });
+  const [firstDueDate, setFirstDueDate] = useState(
+    () => addDaysToDateInput(formatAppDateInput(), 30) ?? formatAppDateInput()
+  );
 
   if (isFree) return null;
   if (currentStatus === "PAID") return null;
@@ -48,7 +38,7 @@ export function PaymentButton({ orderId, currentStatus, currentPrice, isFree }: 
   const preview = mode === "parcelado" && priceNum > 0 && firstDueDate
     ? Array.from({ length: installmentCount }, (_, i) => ({
         n: i + 1,
-        date: addDays(new Date(firstDueDate + "T12:00:00"), i * intervalDaysNum),
+        date: addDaysToDateInput(firstDueDate, i * intervalDaysNum),
         amount: installmentAmount,
       }))
     : [];
@@ -182,7 +172,9 @@ export function PaymentButton({ orderId, currentStatus, currentPrice, isFree }: 
                 {preview.map((p) => (
                   <div key={p.n} className="flex justify-between">
                     <span style={{ color: "var(--text-muted)" }}>{p.n}ª parcela</span>
-                    <span className="font-medium" style={{ color: "var(--text)" }}>{fmtDate(p.date)}</span>
+                    <span className="font-medium" style={{ color: "var(--text)" }}>
+                      {p.date ? formatDate(`${p.date}T12:00:00-03:00`) : "—"}
+                    </span>
                   </div>
                 ))}
               </div>

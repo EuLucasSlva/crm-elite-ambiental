@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { isValidCpfOrCnpj } from "@/lib/format";
 import { auth } from "@/lib/auth";
+import { parseAppDate } from "@/lib/date-time";
 
 const customerSchema = z.object({
   type: z.enum(["PERSON", "COMPANY"]),
@@ -76,6 +77,12 @@ export async function createCustomer(
   }
 
   const data = parsed.data;
+  const lastServiceDate = data.lastServiceDate
+    ? parseAppDate(data.lastServiceDate)
+    : null;
+  if (data.lastServiceDate && !lastServiceDate) {
+    return { errors: { lastServiceDate: ["Data inválida"] } };
+  }
 
   // Strip non-digits from CPF/CNPJ for storage
   const cpfCnpjDigits = data.cpfCnpj.replace(/\D/g, "");
@@ -107,9 +114,7 @@ export async function createCustomer(
       propertyType: data.propertyType,
       siteSizeM2: data.siteSizeM2,
       hadServiceBefore: data.hadServiceBefore,
-      lastServiceDate: data.lastServiceDate
-        ? new Date(data.lastServiceDate)
-        : null,
+      lastServiceDate,
       leadSource: data.leadSource,
       notes: data.notes || null,
     },

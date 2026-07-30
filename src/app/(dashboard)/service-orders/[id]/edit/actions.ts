@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import type { Role, ServiceType } from "@prisma/client";
+import { parseAppDateTime } from "@/lib/date-time";
 
 const SERVICE_TYPES: [ServiceType, ...ServiceType[]] = [
   "INSPECTION", "TREATMENT", "RETURN",
@@ -54,6 +55,12 @@ export async function updateServiceOrder(
   if (!parsed.success) {
     return { errors: parsed.error.flatten().fieldErrors };
   }
+  const scheduledAt = parsed.data.scheduledAt
+    ? parseAppDateTime(parsed.data.scheduledAt)
+    : null;
+  if (parsed.data.scheduledAt && !scheduledAt) {
+    return { errors: { scheduledAt: ["Data ou horário inválido"] } };
+  }
 
   const order = await prisma.serviceOrder.findUnique({
     where: { id: orderId },
@@ -69,7 +76,7 @@ export async function updateServiceOrder(
     where: { id: orderId },
     data: {
       serviceType: parsed.data.serviceType,
-      scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
+      scheduledAt,
       technicianId: parsed.data.technicianId,
       managerId: parsed.data.managerId,
       pestTypes: pestArr,

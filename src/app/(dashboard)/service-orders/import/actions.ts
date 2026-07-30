@@ -3,13 +3,14 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { formatAppDateInput, parseAppDateTime } from "@/lib/date-time";
 
 const rowSchema = z.object({
   serviceFor: z.string().min(1).max(200),
   serviceAddress: z.string().max(300).optional().nullable(),
   team: z.string().max(80).optional().nullable(),
   price: z.number().min(0).max(9_999_999).optional().nullable(),
-  scheduledAt: z.string().optional().nullable(), // ISO
+  scheduledAt: z.string().optional().nullable(),
 });
 
 const importSchema = z.object({
@@ -18,6 +19,13 @@ const importSchema = z.object({
 });
 
 export type ImportLeadsState = { error?: string; createdCount?: number };
+
+function parseImportedDateTime(value: string): Date | null {
+  const localDate = parseAppDateTime(value);
+  if (localDate) return localDate;
+  const legacyIsoDate = new Date(value);
+  return Number.isNaN(legacyIsoDate.getTime()) ? null : legacyIsoDate;
+}
 
 export async function importLeads(
   customerId: string,
@@ -43,9 +51,8 @@ export async function importLeads(
   // Gera orderNumber sequencial (NN + MM + AA) a partir da contagem atual.
   const baseCount = await prisma.serviceOrder.count();
   const now = new Date();
-  const mmYY =
-    String(now.getMonth() + 1).padStart(2, "0") +
-    String(now.getFullYear()).slice(-2);
+  const [appYear, appMonth] = formatAppDateInput(now).split("-");
+  const mmYY = appMonth + appYear.slice(-2);
 
   const data = parsed.data.rows.map((r, i) => ({
     orderNumber: String(baseCount + 1 + i).padStart(2, "0") + mmYY,
@@ -56,8 +63,12 @@ export async function importLeads(
     serviceAddress: r.serviceAddress || null,
     team: r.team || null,
     price: r.price ?? null,
-    scheduledAt: r.scheduledAt ? new Date(r.scheduledAt) : null,
+    scheduledAt: r.scheduledAt ? parseImportedDateTime(r.scheduledAt) : null,
   }));
+
+  if (parsed.data.rows.some((row, index) => row.scheduledAt && !data[index].scheduledAt)) {
+    return { error: "Há uma data ou horário inválido na planilha." };
+  }
 
   const result = await prisma.serviceOrder.createMany({ data });
 

@@ -1,5 +1,8 @@
 "use client";
 
+import { formatDate } from "@/lib/format";
+import { formatAppDateInput } from "@/lib/date-time";
+
 interface StockRow {
   name: string;
   activeIngredient: string;
@@ -33,7 +36,7 @@ export function StockExportButton({ items }: Props) {
       escapeCell(item.unit),
       escapeCell(item.quantity),
       escapeCell(item.minThreshold),
-      escapeCell(item.expiryDate ? new Date(item.expiryDate).toLocaleDateString("pt-BR") : "—"),
+      escapeCell(formatDate(item.expiryDate)),
       escapeCell(item.supplier),
       escapeCell(item.status),
     ]);
@@ -43,7 +46,7 @@ export function StockExportButton({ items }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `estoque_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `estoque_${formatAppDateInput()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

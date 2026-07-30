@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import type { Role } from "@prisma/client";
+import { addDaysToDateInput, parseAppDate } from "@/lib/date-time";
 
 const batchSchema = z.object({
   stockItemId: z.string().min(1),
@@ -51,7 +52,16 @@ export async function createBatch(
   }
 
   const data = parsed.data;
-  const expiryDate = data.expiryDate ? new Date(data.expiryDate) : null;
+  const expiryNextDay = data.expiryDate
+    ? addDaysToDateInput(data.expiryDate, 1)
+    : null;
+  const expiryNextDayStart = expiryNextDay ? parseAppDate(expiryNextDay) : null;
+  const expiryDate = expiryNextDayStart
+    ? new Date(expiryNextDayStart.getTime() - 1)
+    : null;
+  if (data.expiryDate && !expiryDate) {
+    return { errors: { expiryDate: ["Data inválida"] } };
+  }
   const isExpired = expiryDate && expiryDate < new Date();
 
   await prisma.$transaction([

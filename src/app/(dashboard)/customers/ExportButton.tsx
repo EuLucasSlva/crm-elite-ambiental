@@ -1,5 +1,8 @@
 "use client";
 
+import { formatDate } from "@/lib/format";
+import { formatAppDateInput } from "@/lib/date-time";
+
 interface CustomerRow {
   fullName: string;
   cpfCnpj: string;
@@ -45,7 +48,7 @@ export function ExportButton({ customers }: Props) {
       escapeCell(c.propertyType),
       escapeCell(c.leadSource),
       escapeCell(c.serviceOrderCount),
-      escapeCell(new Date(c.createdAt).toLocaleDateString("pt-BR")),
+      escapeCell(formatDate(c.createdAt)),
     ]);
 
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -54,7 +57,7 @@ export function ExportButton({ customers }: Props) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `clientes_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `clientes_${formatAppDateInput()}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

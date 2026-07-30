@@ -14,6 +14,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteServiceOrder } from "@/lib/delete-actions";
 import type { ServiceOrderStatus } from "@prisma/client";
+import { currentAppDayRange, currentAppMonthRange } from "@/lib/date-time";
 
 const PAGE_SIZE = 10;
 
@@ -62,21 +63,23 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
     : { ...searchClause };
 
   // ── KPI stats ─────────────────────────────────────────────────────────────
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const todayRange = currentAppDayRange();
+  const monthRange = currentAppMonthRange();
 
   const [activeCount, todayCount, completedThisMonth, canceledThisMonth] =
     await Promise.all([
       prisma.serviceOrder.count({ where: { status: { notIn: ["CLOSED", "CANCELED"] } } }),
-      prisma.technicalVisit.count({ where: { scheduledAt: { gte: today, lt: tomorrow } } }),
-      prisma.serviceOrder.count({
-        where: { status: "SERVICE_EXECUTED", updatedAt: { gte: monthStart } },
+      prisma.technicalVisit.count({
+        where: { scheduledAt: { gte: todayRange.start, lt: todayRange.endExclusive } },
       }),
       prisma.serviceOrder.count({
-        where: { status: "CANCELED", updatedAt: { gte: monthStart } },
+        where: { executedAt: { gte: monthRange.start, lt: monthRange.endExclusive } },
+      }),
+      prisma.serviceOrder.count({
+        where: {
+          status: "CANCELED",
+          closedAt: { gte: monthRange.start, lt: monthRange.endExclusive },
+        },
       }),
     ]).catch(() => [0, 0, 0, 0]);
 
@@ -84,9 +87,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
   const kanbanOrders =
     view === "kanban"
       ? await prisma.serviceOrder.findMany({
-          where: { status: { notIn: ["CLOSED", "CANCELED"] } },
           orderBy: { updatedAt: "desc" },
-          take: 200,
           select: {
             id: true,
             orderNumber: true,
@@ -155,7 +156,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             {view === "lista"
               ? `${total} ordem${total !== 1 ? "s" : ""} encontrada${total !== 1 ? "s" : ""}`
-              : `${kanbanOrders.length} ordem${kanbanOrders.length !== 1 ? "s" : ""} ativa${kanbanOrders.length !== 1 ? "s" : ""}`}
+              : `${kanbanOrders.length} ordem${kanbanOrders.length !== 1 ? "s" : ""} exibida${kanbanOrders.length !== 1 ? "s" : ""}`}
           </p>
         </div>
 
@@ -206,6 +207,14 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
             style={{ background: "var(--card-bg)", border: "1px solid #d0d5e8", color: "var(--text-muted)" }}
           >
             ⬆ Importar em lote
+          </Link>
+
+          <Link
+            href="/service-orders/export"
+            className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold shadow-sm transition-opacity hover:opacity-90"
+            style={{ background: "var(--card-bg)", border: "1px solid #d0d5e8", color: "var(--text-muted)" }}
+          >
+            ⇩ Exportar por cliente
           </Link>
 
           {/* New OS */}

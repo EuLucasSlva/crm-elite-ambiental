@@ -11,6 +11,7 @@ import {
   TransitionError,
 } from "@/lib/service-order-machine";
 import type { ServiceOrderStatus, Role, PaymentStatus } from "@prisma/client";
+import { addDaysToDateInput, parseAppDate } from "@/lib/date-time";
 
 // ─── Add insumo to existing OS (works regardless of status) ─────────────────
 
@@ -356,6 +357,15 @@ export async function updatePaymentStatus(
   }
 
   const effectivePrice = (price !== null && price !== undefined ? price : order.price) ?? 0;
+  const installmentDates: Date[] = [];
+  if (isParcelado && firstDueDate) {
+    for (let i = 0; i < installments; i++) {
+      const dueDateInput = addDaysToDateInput(firstDueDate, i * intervalDays);
+      const dueDate = dueDateInput ? parseAppDate(dueDateInput) : null;
+      if (!dueDate) return { error: "Data de vencimento inválida." };
+      installmentDates.push(dueDate);
+    }
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.serviceOrder.update({ where: { id }, data });
@@ -366,18 +376,13 @@ export async function updatePaymentStatus(
 
       if (firstDueDate) {
         const installmentAmount = effectivePrice / installments;
-        const baseDate = new Date(firstDueDate + "T12:00:00");
-
         for (let i = 0; i < installments; i++) {
-          const dueDate = new Date(baseDate);
-          dueDate.setDate(dueDate.getDate() + i * intervalDays);
-
           await tx.installment.create({
             data: {
               serviceOrderId: id,
               number: i + 1,
               amount: installmentAmount,
-              dueDate,
+              dueDate: installmentDates[i],
               status: "PENDING",
             },
           });

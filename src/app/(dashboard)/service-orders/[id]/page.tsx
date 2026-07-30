@@ -183,20 +183,20 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
               <div className="flex justify-between gap-2">
                 <dt className="text-gray-500">Criado em</dt>
                 <dd className="font-medium text-gray-800">
-                  {formatDate(order.createdAt)}
+                  {formatDateTime(order.createdAt)}
                 </dd>
               </div>
               <div className="flex justify-between gap-2">
                 <dt className="text-gray-500">Agendado para</dt>
                 <dd className="font-medium text-gray-800">
-                  {formatDate(order.scheduledAt)}
+                  {formatDateTime(order.scheduledAt)}
                 </dd>
               </div>
               {order.executedAt && (
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Executado em</dt>
                   <dd className="font-medium text-gray-800">
-                    {formatDate(order.executedAt)}
+                    {formatDateTime(order.executedAt)}
                   </dd>
                 </div>
               )}
@@ -204,7 +204,7 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Encerrado em</dt>
                   <dd className="font-medium text-gray-800">
-                    {formatDate(order.closedAt)}
+                    {formatDateTime(order.closedAt)}
                   </dd>
                 </div>
               )}
@@ -280,7 +280,7 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
               {order.paidAt && (
                 <div className="flex justify-between gap-2">
                   <dt className="text-gray-500">Pago em</dt>
-                  <dd className="font-medium text-gray-800">{formatDate(order.paidAt)}</dd>
+                  <dd className="font-medium text-gray-800">{formatDateTime(order.paidAt)}</dd>
                 </div>
               )}
             </dl>

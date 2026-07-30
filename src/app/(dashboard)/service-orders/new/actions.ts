@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isValidCpfOrCnpj } from "@/lib/format";
+import { formatAppDateInput, parseAppDateTime } from "@/lib/date-time";
 
 const serviceOrderSchema = z.object({
   customerId: z.string().min(1, "Selecione um cliente"),
@@ -58,6 +59,12 @@ export async function createServiceOrder(
   }
 
   const data = parsed.data;
+  const scheduledAt = data.scheduledAt
+    ? parseAppDateTime(data.scheduledAt)
+    : null;
+  if (data.scheduledAt && !scheduledAt) {
+    return { errors: { scheduledAt: ["Data ou horário inválido"] } };
+  }
 
   // Verify customer exists
   const customer = await prisma.customer.findUnique({
@@ -91,10 +98,11 @@ export async function createServiceOrder(
   // Generate sequential order number: NN + MM + YY (e.g. "060126" = 6th OS, Jan 2026)
   const count = await prisma.serviceOrder.count();
   const now = new Date();
+  const [appYear, appMonth] = formatAppDateInput(now).split("-");
   const orderNumber =
     String(count + 1).padStart(2, "0") +
-    String(now.getMonth() + 1).padStart(2, "0") +
-    String(now.getFullYear()).slice(-2);
+    appMonth +
+    appYear.slice(-2);
 
   const order = await prisma.serviceOrder.create({
     data: {
@@ -108,7 +116,7 @@ export async function createServiceOrder(
       pestTypes: pestTypesArray,
       treatedAreas: treatedAreasArray,
       serviceFor: data.serviceFor || null,
-      scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+      scheduledAt,
       notes: data.notes || null,
       status: "LEAD_CAPTURED",
       price: data.price ?? null,

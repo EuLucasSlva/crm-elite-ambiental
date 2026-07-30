@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createExpense, type CreateExpenseState } from "../actions";
 import { EXPENSE_CATEGORY_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/labels-extras";
+import { formatAppDateInput } from "@/lib/date-time";
 
 interface Props {
   orders: { id: string; customer: { fullName: string } }[];
@@ -17,7 +18,7 @@ const BUILTIN_CATEGORIES = Object.entries(EXPENSE_CATEGORY_LABELS).filter(
 export function NewExpenseForm({ orders }: Props) {
   const [state, formAction, pending] = useActionState(createExpense, initialState);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = formatAppDateInput();
 
   const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [customInput, setCustomInput] = useState("");

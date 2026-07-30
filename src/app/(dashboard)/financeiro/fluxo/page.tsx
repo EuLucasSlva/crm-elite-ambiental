@@ -8,6 +8,12 @@ import { KpiCard } from "@/components/ui/KpiCard";
 import { Badge } from "@/components/ui/Badge";
 import { EXPENSE_CATEGORY_LABELS } from "@/lib/labels-extras";
 import type { Role } from "@prisma/client";
+import {
+  addDaysToDateInput,
+  appDateRange,
+  currentAppMonthRange,
+  formatAppDateInput,
+} from "@/lib/date-time";
 
 interface PageProps {
   searchParams: Promise<{ from?: string; to?: string }>;
@@ -19,16 +25,17 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
   if (role !== "ADMIN" && role !== "MANAGER") redirect("/");
 
   const params = await searchParams;
-  const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
-
-  const start = params.from ? new Date(params.from) : monthStart;
-  const end = params.to ? new Date(params.to) : monthEnd;
+  const month = currentAppMonthRange();
+  const defaultFrom = formatAppDateInput(month.start);
+  const defaultTo = addDaysToDateInput(formatAppDateInput(month.endExclusive), -1) ?? defaultFrom;
+  const requestedRange =
+    params.from && params.to ? appDateRange(params.from, params.to) : null;
+  const start = requestedRange?.start ?? month.start;
+  const endExclusive = requestedRange?.endExclusive ?? month.endExclusive;
 
   const [paidOrders, expenses] = await Promise.all([
     prisma.serviceOrder.findMany({
-      where: { paymentStatus: "PAID", paidAt: { gte: start, lte: end } },
+      where: { paymentStatus: "PAID", paidAt: { gte: start, lt: endExclusive } },
       orderBy: { paidAt: "desc" },
       select: {
         id: true,
@@ -39,7 +46,7 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
       },
     }),
     prisma.expense.findMany({
-      where: { paidAt: { gte: start, lte: end } },
+      where: { paidAt: { gte: start, lt: endExclusive } },
       orderBy: { paidAt: "desc" },
       select: {
         id: true,
@@ -88,7 +95,8 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
   const totalExpense = entries.filter((e) => e.type === "EXPENSE").reduce((acc, e) => acc + e.amount, 0);
   const balance = totalIncome - totalExpense;
 
-  const fmtDate = (d: Date) => d.toISOString().split("T")[0];
+  const fromInput = params.from && requestedRange ? params.from : defaultFrom;
+  const toInput = params.to && requestedRange ? params.to : defaultTo;
 
   return (
     <div className="space-y-4">
@@ -98,7 +106,7 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
             FLUXO DE CAIXA
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-            Período: {formatDate(start)} a {formatDate(end)}
+            Período: {formatDate(start)} a {formatDate(new Date(endExclusive.getTime() - 1))}
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -127,7 +135,7 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
             <input
               type="date"
               name="from"
-              defaultValue={fmtDate(start)}
+              defaultValue={fromInput}
               className="rounded-md border px-3 py-2 text-sm min-h-[40px]"
               style={{ borderColor: "#d0d5e8" }}
             />
@@ -137,7 +145,7 @@ export default async function CashFlowPage({ searchParams }: PageProps) {
             <input
               type="date"
               name="to"
-              defaultValue={fmtDate(end)}
+              defaultValue={toInput}
               className="rounded-md border px-3 py-2 text-sm min-h-[40px]"
               style={{ borderColor: "#d0d5e8" }}
             />

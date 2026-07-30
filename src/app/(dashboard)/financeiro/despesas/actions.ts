@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import type { Role } from "@prisma/client";
+import { parseAppDate } from "@/lib/date-time";
 
 const CATEGORIES = ["FUEL", "PPE", "CHEMICAL", "SALARY", "RENT", "ADMIN", "MAINTENANCE", "MARKETING", "TAXES", "FOOD", "DAILY_PAYMENT", "OTHER"] as const;
 const METHODS = ["PIX", "CASH", "CARD", "TRANSFER", "BOLETO"] as const;
@@ -56,6 +57,8 @@ export async function createExpense(
   if (!parsed.success) {
     return { errors: parsed.error.flatten().fieldErrors as CreateExpenseState["errors"] };
   }
+  const paidAt = parseAppDate(parsed.data.paidAt);
+  if (!paidAt) return { errors: { paidAt: ["Data inválida"] } };
 
   const expense = await prisma.expense.create({
     data: {
@@ -63,7 +66,7 @@ export async function createExpense(
       customCategory: parsed.data.customCategory ?? null,
       description: parsed.data.description,
       amount: parsed.data.amount,
-      paidAt: new Date(parsed.data.paidAt),
+      paidAt,
       paymentMethod: parsed.data.paymentMethod,
       supplier: parsed.data.supplier,
       serviceOrderId: parsed.data.serviceOrderId,

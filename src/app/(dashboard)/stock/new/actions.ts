@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import type { StockUnit } from "@prisma/client";
+import { addDaysToDateInput, parseAppDate } from "@/lib/date-time";
 
 const VALID_UNITS: StockUnit[] = ["ML", "G", "L", "KG", "UNIT", "M2"];
 
@@ -26,8 +27,7 @@ const stockItemSchema = z.object({
   expiryDate: z
     .string()
     .optional()
-    .nullable()
-    .transform((v) => (v ? new Date(v) : null)),
+    .nullable(),
   supplier: z.string().max(120).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
 });
@@ -64,6 +64,16 @@ export async function createStockItem(
   }
 
   const data = result.data;
+  const expiryNextDay = data.expiryDate
+    ? addDaysToDateInput(data.expiryDate, 1)
+    : null;
+  const expiryNextDayStart = expiryNextDay ? parseAppDate(expiryNextDay) : null;
+  const expiryDate = expiryNextDayStart
+    ? new Date(expiryNextDayStart.getTime() - 1)
+    : null;
+  if (data.expiryDate && !expiryDate) {
+    return { errors: { expiryDate: ["Data inválida"] } };
+  }
 
   const item = await prisma.stockItem.create({
     data: {
@@ -73,7 +83,7 @@ export async function createStockItem(
       quantity: data.quantity,
       minThreshold: data.minThreshold,
       unitCost: data.unitCost,
-      expiryDate: data.expiryDate,
+      expiryDate,
       supplier: data.supplier ?? null,
       notes: data.notes ?? null,
     },
