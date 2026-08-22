@@ -62,12 +62,11 @@ async function getFinancialReport() {
   // ── Revenue from paid installments (parcelado) ─────────────────────────────
   // Installments represent revenue recognized per due date
   const ranges = Array.from({ length: 6 }, (_, i) => getMonthRange(5 - i));
-  const sixMonthsAgo = ranges[0].start;
 
   const [paidInstallments, paidAvistaInWindow] = await Promise.all([
     // Installments paid in the 6-month window
     prisma.installment.findMany({
-      where: { status: "PAID", paidAt: { gte: sixMonthsAgo } },
+      where: { status: "PAID", paidAt: { gte: yearStart } },
       select: {
         amount: true,
         paidAt: true,
@@ -85,7 +84,7 @@ async function getFinancialReport() {
     prisma.serviceOrder.findMany({
       where: {
         paymentStatus: "PAID",
-        paidAt: { gte: sixMonthsAgo },
+        paidAt: { gte: yearStart },
         installmentCount: null,
       },
       select: {
@@ -339,8 +338,8 @@ export default async function FinanceiroPage() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold leading-none" style={{ color: "var(--text)" }}>
-            FINANCEIRO
+          <h1 className="page-title">
+            Financeiro
           </h1>
           <p className="text-sm mt-1 capitalize" style={{ color: "var(--text-muted)" }}>
             Relatório de {monthLabel}
@@ -363,8 +362,7 @@ export default async function FinanceiroPage() {
           </Link>
           <Link
             href="/financeiro/despesas/new"
-            className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-sm hover:opacity-90"
-            style={{ background: "#dc2626" }}
+            className="btn-primary"
           >
             <span className="text-base leading-none">+</span> Nova Despesa
           </Link>
@@ -409,6 +407,13 @@ export default async function FinanceiroPage() {
             label="A receber (pendente)"
             value={formatCurrency(d.pendingValue)}
             subtext={d.pendingCount > 0 ? `${d.pendingCount} OS pendente${d.pendingCount !== 1 ? "s" : ""}` : undefined}
+            tone={d.pendingCount > 0 ? "warning" : "default"}
+          />
+          <KpiCard
+            label="Em atraso"
+            value={formatCurrency(d.overdueValue)}
+            subtext={d.overdueCount > 0 ? `${d.overdueCount} cobrança${d.overdueCount !== 1 ? "s" : ""}` : "Nenhuma cobrança vencida"}
+            tone={d.overdueCount > 0 ? "danger" : "success"}
           />
         </div>
       </div>

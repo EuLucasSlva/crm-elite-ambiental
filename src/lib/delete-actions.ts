@@ -23,7 +23,10 @@ export async function deleteCustomer(id: string): Promise<Result> {
   if (!auth.ok) return { error: auth.error };
 
   try {
-    // Cascade já remove ServiceOrders, e ServiceOrders cascateiam o resto
+    const orderCount = await prisma.serviceOrder.count({ where: { customerId: id } });
+    if (orderCount > 0) {
+      return { error: "Este cliente possui histórico de ordens de serviço e não pode ser apagado. Preserve o cadastro para manter a rastreabilidade." };
+    }
     await prisma.customer.delete({ where: { id } });
     await writeAuditLog({
       entityName: "Customer",
@@ -34,7 +37,7 @@ export async function deleteCustomer(id: string): Promise<Result> {
     revalidatePath("/customers");
     return { success: true };
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Erro ao apagar cliente." };
+    return { error: "Não foi possível apagar o cliente. Verifique os vínculos existentes." };
   }
 }
 
@@ -45,6 +48,19 @@ export async function deleteServiceOrder(id: string): Promise<Result> {
   if (!auth.ok) return { error: auth.error };
 
   try {
+    const linkedRecords = await prisma.serviceOrder.findUnique({
+      where: { id },
+      select: {
+        _count: { select: { technicalVisits: true, installments: true, stockMovements: true, expenses: true, auditLogs: true } },
+        certificate: { select: { id: true } },
+        warranty: { select: { id: true } },
+      },
+    });
+    if (!linkedRecords) return { error: "OS não encontrada." };
+    const hasHistory = Object.values(linkedRecords._count).some((count) => count > 0) || linkedRecords.certificate || linkedRecords.warranty;
+    if (hasHistory) {
+      return { error: "Esta OS já possui execução, movimentação financeira ou trilha de auditoria e não pode ser apagada." };
+    }
     // Limpar dependentes que não têm cascade no schema
     await prisma.$transaction([
       prisma.applicationPoint.deleteMany({
@@ -78,7 +94,7 @@ export async function deleteServiceOrder(id: string): Promise<Result> {
     revalidatePath("/financeiro");
     return { success: true };
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Erro ao apagar OS." };
+    return { error: "Não foi possível apagar a OS. Verifique os registros vinculados." };
   }
 }
 
@@ -89,6 +105,14 @@ export async function deleteStockItem(id: string): Promise<Result> {
   if (!auth.ok) return { error: auth.error };
 
   try {
+    const links = await prisma.stockItem.findUnique({
+      where: { id },
+      select: { _count: { select: { movements: true, batches: true, applicationPoints: true } } },
+    });
+    if (!links) return { error: "Item não encontrado." };
+    if (Object.values(links._count).some((count) => count > 0)) {
+      return { error: "Este item possui lotes ou movimentações e não pode ser apagado sem comprometer o histórico." };
+    }
     await prisma.stockItem.delete({ where: { id } });
     await writeAuditLog({
       entityName: "StockItem",
@@ -99,7 +123,7 @@ export async function deleteStockItem(id: string): Promise<Result> {
     revalidatePath("/stock");
     return { success: true };
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Erro ao apagar item de estoque." };
+    return { error: "Não foi possível apagar o item de estoque. Verifique os vínculos existentes." };
   }
 }
 
@@ -138,7 +162,7 @@ export async function deleteStockBatch(id: string): Promise<Result> {
     revalidatePath("/stock");
     return { success: true };
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Erro ao apagar lote." };
+    return { error: "Não foi possível apagar o lote." };
   }
 }
 
@@ -161,7 +185,7 @@ export async function deleteExpense(id: string): Promise<Result> {
     revalidatePath("/financeiro/fluxo");
     return { success: true };
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Erro ao apagar despesa." };
+    return { error: "Não foi possível apagar a despesa." };
   }
 }
 
@@ -176,7 +200,7 @@ export async function deletePestType(id: string): Promise<Result> {
     revalidatePath("/admin/pragas");
     return { success: true };
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Erro ao apagar praga." };
+    return { error: "Não foi possível apagar a praga." };
   }
 }
 
@@ -191,7 +215,7 @@ export async function deleteApplicationArea(id: string): Promise<Result> {
     revalidatePath("/admin/areas");
     return { success: true };
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Erro ao apagar área." };
+    return { error: "Não foi possível apagar a área." };
   }
 }
 
@@ -203,28 +227,18 @@ export async function deleteUser(id: string): Promise<Result> {
   if (id === auth.userId) return { error: "Você não pode apagar seu próprio usuário." };
 
   try {
-    // Limpar dependências
-    const hasOrders = await prisma.serviceOrder.count({
-      where: { OR: [{ technicianId: id }, { managerId: id }] },
+    const user = await prisma.user.findUnique({ where: { id }, select: { active: true } });
+    if (!user) return { error: "Usuário não encontrado." };
+    await prisma.user.update({ where: { id }, data: { active: false } });
+    await writeAuditLog({
+      entityName: "User",
+      entityId: id,
+      userId: auth.userId,
+      changes: { active: { from: user.active, to: false }, reason: { to: "Conta desativada; histórico preservado" } },
     });
-    if (hasOrders > 0) {
-      // Em vez de bloquear, fazemos soft-delete via flag active
-      await prisma.user.update({ where: { id }, data: { active: false } });
-      await writeAuditLog({
-        entityName: "User",
-        entityId: id,
-        userId: auth.userId,
-        changes: { active: { from: "true", to: "false" }, reason: { to: "Soft-delete (tem OS associadas)" } },
-      });
-      revalidatePath("/users");
-      return { success: true };
-    }
-
-    await prisma.auditLog.deleteMany({ where: { userId: id } });
-    await prisma.user.delete({ where: { id } });
     revalidatePath("/users");
     return { success: true };
   } catch (e: unknown) {
-    return { error: e instanceof Error ? e.message : "Erro ao apagar usuário." };
+    return { error: "Não foi possível apagar o usuário." };
   }
 }

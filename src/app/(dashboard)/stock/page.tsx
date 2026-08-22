@@ -9,6 +9,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Badge } from "@/components/ui/Badge";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteStockItem } from "@/lib/delete-actions";
+import { requireRoles } from "@/lib/access";
 import type { StockUnit } from "@prisma/client";
 
 const UNIT_LABELS: Record<StockUnit, string> = {
@@ -20,6 +21,7 @@ interface PageProps {
 }
 
 export default async function StockPage({ searchParams }: PageProps) {
+  await requireRoles(["ADMIN", "MANAGER"]);
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const statusFilter = params.status ?? "todos";
@@ -104,8 +106,8 @@ export default async function StockPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold leading-none" style={{ color: "var(--text)" }}>
-            ESTOQUE
+          <h1 className="page-title">
+            Estoque
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             Controle de produtos e insumos
@@ -115,8 +117,7 @@ export default async function StockPage({ searchParams }: PageProps) {
           <StockExportButton items={exportRows} />
           <Link
             href="/stock/new"
-            className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity"
-            style={{ background: "var(--navy)" }}
+            className="btn-primary"
           >
             <span className="text-base leading-none">+</span>
             Novo Item
@@ -127,9 +128,9 @@ export default async function StockPage({ searchParams }: PageProps) {
       {/* KPI row */}
       <div className="kpi-row">
         <KpiCard label="Total de itens" value={totalItems} />
-        <KpiCard label="Abaixo do mínimo" value={lowStockCount} />
-        <KpiCard label="Vencendo em 60 dias" value={expiringSoonCount} />
-        <KpiCard label="Vencidos" value={expiredCount} />
+        <KpiCard label="Abaixo do mínimo" value={lowStockCount} tone={lowStockCount > 0 ? "warning" : "default"} />
+        <KpiCard label="Vencendo em 60 dias" value={expiringSoonCount} tone={expiringSoonCount > 0 ? "warning" : "default"} />
+        <KpiCard label="Vencidos" value={expiredCount} tone={expiredCount > 0 ? "danger" : "default"} />
       </div>
 
       {/* Search + Filter */}

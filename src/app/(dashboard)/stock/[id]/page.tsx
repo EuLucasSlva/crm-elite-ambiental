@@ -7,6 +7,7 @@ import { NewBatchForm } from "./batches/NewBatchForm";
 import { Badge } from "@/components/ui/Badge";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteStockItem, deleteStockBatch } from "@/lib/delete-actions";
+import { requireRoles } from "@/lib/access";
 import { getBatchBadge, BATCH_STATUS_LABELS } from "@/lib/labels-extras";
 import type { StockUnit } from "@prisma/client";
 
@@ -24,6 +25,7 @@ interface PageProps {
 }
 
 export default async function StockItemDetailPage({ params }: PageProps) {
+  await requireRoles(["ADMIN", "MANAGER"]);
   const { id } = await params;
 
   const item = await prisma.stockItem.findUnique({

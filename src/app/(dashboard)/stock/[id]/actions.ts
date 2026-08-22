@@ -25,7 +25,7 @@ export async function adjustStock(
   formData: FormData
 ): Promise<StockAdjustmentState> {
   const session = await auth();
-  if (!session?.user?.id) {
+  if (!session?.user?.id || !["ADMIN", "MANAGER"].includes(session.user.role)) {
     return { globalError: "Sessão expirada. Faça login novamente." };
   }
 

@@ -12,6 +12,7 @@ import type { NextConfig } from "next";
  * - HSTS com 2 anos + preload: envie o domínio para o preload list do Chrome
  *   em https://hstspreload.org/ após validar que HTTPS está estável.
  */
+const isDevelopment = process.env.NODE_ENV === "development";
 const securityHeaders = [
   // Habilita prefetch de DNS — pequena melhora de performance sem risco.
   { key: "X-DNS-Prefetch-Control", value: "on" },
@@ -22,14 +23,14 @@ const securityHeaders = [
     value: "max-age=63072000; includeSubDomains; preload",
   },
 
-  // Impede clickjacking via iframe (complementar ao CSP frame-ancestors).
-  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  // Impede clickjacking via iframe (alinhado ao CSP frame-ancestors 'none').
+  { key: "X-Frame-Options", value: "DENY" },
 
   // Impede MIME-type sniffing — reduz risco de XSS via upload de conteúdo.
   { key: "X-Content-Type-Options", value: "nosniff" },
 
-  // Filtro XSS legado (navegadores antigos sem suporte a CSP).
-  { key: "X-XSS-Protection", value: "1; mode=block" },
+  // Desativa o filtro XSS legado; a proteção moderna é fornecida pelo CSP.
+  { key: "X-XSS-Protection", value: "0" },
 
   // Controla informações enviadas no header Referer.
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -45,19 +46,24 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self'",
       "connect-src 'self'",
       "frame-ancestors 'none'",
+      "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",
+      ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
     ].join("; "),
   },
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 ];
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   async headers() {
     return [
       {

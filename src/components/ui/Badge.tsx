@@ -16,7 +16,7 @@ export function Badge({
   variant?: BadgeVariant;
   label: string;
 }) {
-  const base = "inline-block px-3 py-0.5 rounded-full text-xs font-bold";
+  const base = "inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold whitespace-nowrap";
   const cls = VARIANT_CLASSES[variant];
   const style =
     variant === "navy" ? { backgroundColor: "var(--navy)" } : undefined;

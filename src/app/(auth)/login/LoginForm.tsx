@@ -6,10 +6,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { safeInternalPath } from "@/lib/navigation-security";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
-  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  password: z.string().min(1, "Informe sua senha").max(128),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -17,7 +18,7 @@ type FormData = z.infer<typeof schema>;
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") ?? "/";
+  const callbackUrl = safeInternalPath(searchParams.get("callbackUrl"));
   const [error, setError] = useState<string | null>(null);
 
   const {
@@ -48,17 +49,18 @@ export function LoginForm() {
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="bg-white rounded-2xl shadow-xl p-6 space-y-4"
+      className="bg-white rounded-xl shadow-xl p-6 space-y-4 border border-white/20"
     >
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">
           Email
         </label>
         <input
+          id="login-email"
           type="email"
           autoComplete="email"
           {...register("email")}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
           placeholder="seu@email.com"
         />
         {errors.email && (
@@ -67,14 +69,15 @@ export function LoginForm() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
           Senha
         </label>
         <input
+          id="login-password"
           type="password"
           autoComplete="current-password"
           {...register("password")}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
           placeholder="••••••••"
         />
         {errors.password && (
@@ -83,7 +86,7 @@ export function LoginForm() {
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+        <p role="alert" className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
           {error}
         </p>
       )}
@@ -91,7 +94,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition-colors"
+        className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition-colors"
       >
         {isSubmitting ? "Entrando…" : "Entrar"}
       </button>

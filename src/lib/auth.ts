@@ -13,10 +13,11 @@ import {
   resetLoginRateLimit,
 } from "@/lib/rate-limit";
 
-// Mínimo aumentado de 6 para 8 caracteres (política de senha corrigida).
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  // A política forte vale para novas senhas; o login continua aceitando
+  // credenciais legadas para não bloquear contas já existentes.
+  password: z.string().min(1).max(128),
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -42,8 +43,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: identifier, mode: "insensitive" } },
           select: {
             id: true,
             name: true,

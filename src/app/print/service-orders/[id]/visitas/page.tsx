@@ -36,6 +36,7 @@ export default async function PrintVisitsPage({ params }: PageProps) {
   });
 
   if (!order) notFound();
+  if (session.user.role === "TECHNICIAN" && order.technicianId !== session.user.id) notFound();
 
   const orderLabel = order.orderNumber ?? shortId(order.id);
   const interval = order.visitIntervalDays || 90;

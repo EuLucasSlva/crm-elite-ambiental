@@ -33,7 +33,7 @@ export async function createServiceOrder(
   formData: FormData
 ): Promise<NewServiceOrderState> {
   const session = await auth();
-  if (!session?.user) {
+  if (!session?.user || !["ADMIN", "MANAGER"].includes(session.user.role)) {
     return { message: "Sessão expirada. Faça login novamente." };
   }
 
@@ -73,6 +73,17 @@ export async function createServiceOrder(
   });
   if (!customer) {
     return { errors: { customerId: ["Cliente não encontrado"] } };
+  }
+
+  const [technician, manager] = await Promise.all([
+    data.technicianId ? prisma.user.findUnique({ where: { id: data.technicianId }, select: { role: true, active: true } }) : null,
+    data.managerId ? prisma.user.findUnique({ where: { id: data.managerId }, select: { role: true, active: true } }) : null,
+  ]);
+  if (data.technicianId && (!technician?.active || technician.role !== "TECHNICIAN")) {
+    return { errors: { technicianId: ["Técnico inválido ou inativo"] } };
+  }
+  if (data.managerId && (!manager?.active || !["ADMIN", "MANAGER"].includes(manager.role))) {
+    return { errors: { managerId: ["Responsável inválido ou inativo"] } };
   }
 
   const pestTypesArray = data.pestTypes
@@ -161,7 +172,7 @@ export async function createCustomerQuick(
   formData: FormData
 ): Promise<QuickCustomerState> {
   const session = await auth();
-  if (!session?.user) return { message: "Sessão expirada. Faça login novamente." };
+  if (!session?.user || !["ADMIN", "MANAGER"].includes(session.user.role)) return { message: "Sem permissão para cadastrar clientes." };
 
   const parsed = quickCustomerSchema.safeParse({
     type: formData.get("type"),
@@ -194,7 +205,7 @@ export async function createCustomerQuick(
       fullName: d.fullName,
       cpfCnpj: cpfCnpjDigits,
       phone: d.phone.replace(/\D/g, ""),
-      email: d.email || null,
+      email: d.email?.trim().toLowerCase() || null,
       street: d.street,
       number: d.number,
       complement: d.complement || null,
@@ -215,7 +226,7 @@ export async function createCustomerQuick(
 export async function searchCustomers(query: string) {
   // Verificação de sessão — impede lookup de clientes sem autenticação.
   const session = await auth();
-  if (!session?.user) return [];
+  if (!session?.user || !["ADMIN", "MANAGER"].includes(session.user.role)) return [];
 
   if (!query || query.trim().length < 2) return [];
 

@@ -41,16 +41,25 @@ export async function writeAuditLog(options: WriteAuditLogOptions): Promise<void
     entityId,
     userId,
     field,
-    oldValue: from !== undefined && from !== null ? String(from) : null,
-    newValue: to !== undefined && to !== null ? String(to) : null,
+    oldValue: sanitizeAuditValue(field, from),
+    newValue: sanitizeAuditValue(field, to),
     serviceOrderId: serviceOrderId ?? null,
   }));
 
   if (rows.length === 0) return;
 
-  prisma.auditLog.createMany({ data: rows }).catch(() => {
+  await prisma.auditLog.createMany({ data: rows }).catch(() => {
     // Audit failures must never break the primary operation.
   });
+}
+
+const SENSITIVE_FIELDS = /password|token|secret|signature|cpf|cnpj|email|phone/i;
+
+function sanitizeAuditValue(field: string, value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (SENSITIVE_FIELDS.test(field)) return "[REDACTED]";
+  const serialized = Array.isArray(value) ? value.join(", ") : String(value);
+  return serialized.length > 500 ? `${serialized.slice(0, 497)}...` : serialized;
 }
 
 /**

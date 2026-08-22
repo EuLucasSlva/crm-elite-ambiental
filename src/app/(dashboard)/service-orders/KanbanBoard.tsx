@@ -9,6 +9,7 @@ import type { ServiceOrderStatus, ServiceType } from "@prisma/client";
 
 export type KanbanOrder = {
   id: string;
+  orderNumber: string | null;
   status: ServiceOrderStatus;
   serviceType: ServiceType;
   isFree: boolean;
@@ -33,7 +34,7 @@ const COLUMNS: KanbanColumn[] = [
   { key: "orcamento", label: "Orçamento", statuses: ["QUOTE_CREATED", "QUOTE_APPROVED", "QUOTE_REJECTED"],     accentColor: "#f59e0b", headerBg: "#f59e0b", headerText: "#78350f" },
   { key: "agendado",  label: "Agendado",  statuses: ["SERVICE_SCHEDULED"],                                     accentColor: "#22c55e", headerBg: "#22c55e", headerText: "#fff" },
   { key: "executado", label: "Tratamento", statuses: ["SERVICE_EXECUTED", "CERTIFICATE_ISSUED"],                 accentColor: "#15803d", headerBg: "#15803d", headerText: "#fff" },
-  { key: "encerrado", label: "Concluídas", statuses: ["WARRANTY_ACTIVE", "CLOSED", "CANCELED"],              accentColor: "#9ca3af", headerBg: "#9ca3af", headerText: "#fff" },
+  { key: "encerrado", label: "Encerrados", statuses: ["WARRANTY_ACTIVE", "CLOSED", "CANCELED"],             accentColor: "#9ca3af", headerBg: "#9ca3af", headerText: "#fff" },
 ];
 
 // Representative status to use when moving a card to each column
@@ -60,20 +61,36 @@ function buildInitialCols(orders: KanbanOrder[]): Record<string, string[]> {
 
 interface KanbanBoardProps {
   orders: KanbanOrder[];
+  canMove?: boolean;
 }
 
-export function KanbanBoard({ orders }: KanbanBoardProps) {
+export function KanbanBoard({ orders, canMove = true }: KanbanBoardProps) {
   const orderMap = Object.fromEntries(orders.map((o) => [o.id, o]));
   const [cols, setCols] = useState<Record<string, string[]>>(() => buildInitialCols(orders));
   const [, startTransition] = useTransition();
+  const [moveError, setMoveError] = useState<string | null>(null);
 
-  // Busca — filtra cards por nome do cliente ou "para quem é".
+  // Busca em todos os cards, inclusive no histórico acumulado de encerrados.
   const [search, setSearch] = useState("");
-  const term = search.trim().toLowerCase();
-  const matches = (o: KanbanOrder) =>
-    !term ||
-    o.customer.fullName.toLowerCase().includes(term) ||
-    (o.serviceFor?.toLowerCase().includes(term) ?? false);
+  const normalizeSearch = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  const term = normalizeSearch(search.trim());
+  const matches = (o: KanbanOrder) => {
+    if (!term) return true;
+
+    return [
+      o.orderNumber,
+      shortId(o.id),
+      o.customer.fullName,
+      o.serviceFor,
+      o.technician?.name,
+      STATUS_LABELS[o.status],
+    ].some((value) => value && normalizeSearch(value).includes(term));
+  };
+  const resultCount = orders.filter(matches).length;
 
   // drag state — plain refs, no re-renders needed during drag
   const dragId = useRef<string | null>(null);
@@ -103,6 +120,7 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
   // ── Drag handlers ──────────────────────────────────────────────────────────
 
   function onDragStart(e: React.DragEvent, id: string, colKey: string) {
+    setMoveError(null);
     dragId.current = id;
     dragFromCol.current = colKey;
     e.dataTransfer.effectAllowed = "move";
@@ -181,6 +199,7 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
           if (result.error) {
             // Rollback optimistic update on error
             setCols(snapshot);
+            setMoveError(result.error);
           }
         });
       }
@@ -189,51 +208,45 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const colGrid = (
-    <div className="flex gap-4">
-      {COLUMNS.map((col) => {
-        const colOrders = cols[col.key].map((id) => orderMap[id]).filter(Boolean);
-        const visibleCount = col.key === overCol
-          ? colOrders.filter((o) => o.id !== draggingId).length
-          : colOrders.length;
-
-        return (
-          <KanbanColWrapper
-            key={col.key}
-            col={col}
-            orders={colOrders}
-            draggingId={draggingId}
-            isOver={overCol === col.key}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            visibleCount={visibleCount}
-          />
-        );
-      })}
-    </div>
-  );
-
   return (
     <div className="pb-4">
       {/* Busca */}
-      <div className="mb-4 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-2 flex-wrap">
         <input
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar por cliente ou unidade (para quem é)..."
+          placeholder="Buscar por OS, cliente, unidade, técnico ou status..."
+          aria-label="Buscar ordens no Kanban"
           className="flex-1 max-w-md rounded-full border px-4 py-2 text-sm outline-none focus:ring-2"
           style={{ borderColor: "#d0d5e8", background: "var(--card-bg)", color: "var(--text)" }}
         />
         {term && (
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            filtrando por &quot;{search}&quot;
-          </span>
+          <>
+            <span className="text-xs" aria-live="polite" style={{ color: "var(--text-muted)" }}>
+              {resultCount} resultado{resultCount !== 1 ? "s" : ""}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="rounded-full border px-3 py-2 text-xs font-semibold transition-colors"
+              style={{ borderColor: "#d0d5e8", color: "var(--text-muted)" }}
+            >
+              Limpar
+            </button>
+          </>
         )}
       </div>
+
+      {moveError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-xl border px-4 py-3 text-sm"
+          style={{ borderColor: "#fecaca", background: "#fef2f2", color: "#b91c1c" }}
+        >
+          Não foi possível mover a OS: {moveError}
+        </div>
+      )}
 
       <div className="overflow-x-auto">
       {/* Desktop */}
@@ -254,6 +267,7 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
                 onDragLeave={onDragLeave}
                 onDrop={onDrop}
                 visibleCount={colOrders.filter(o => o.id !== draggingId).length}
+                canMove={canMove}
               />
             );
           })}
@@ -276,6 +290,7 @@ export function KanbanBoard({ orders }: KanbanBoardProps) {
                 onDragLeave={onDragLeave}
                 onDrop={onDrop}
                 visibleCount={colOrders.filter(o => o.id !== draggingId).length}
+                canMove={canMove}
               />
             </div>
           );
@@ -294,6 +309,7 @@ interface ColWrapperProps {
   draggingId: string | null;
   isOver: boolean;
   visibleCount: number;
+  canMove: boolean;
   onDragStart: (e: React.DragEvent, id: string, col: string) => void;
   onDragEnd: (e: React.DragEvent) => void;
   onDragOver: (e: React.DragEvent, col: string, el: HTMLElement) => void;
@@ -302,7 +318,7 @@ interface ColWrapperProps {
 }
 
 function KanbanColWrapper({
-  col, orders, draggingId, isOver, visibleCount,
+  col, orders, draggingId, isOver, visibleCount, canMove,
   onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop,
 }: ColWrapperProps) {
   const cardsRef = useRef<HTMLDivElement>(null);
@@ -351,15 +367,15 @@ function KanbanColWrapper({
             <div
               key={order.id}
               data-card-id={order.id}
-              draggable
-              onDragStart={(e) => onDragStart(e, order.id, col.key)}
+              draggable={canMove}
+              onDragStart={(e) => canMove && onDragStart(e, order.id, col.key)}
               onDragEnd={onDragEnd}
               className="group relative rounded-[12px] shadow-sm select-none transition-all duration-100"
               style={{
                 background: "var(--white)",
                 borderLeft: `3px solid ${col.accentColor}`,
                 opacity: isDragging ? 0.2 : 1,
-                cursor: isDragging ? "grabbing" : "grab",
+                cursor: canMove ? (isDragging ? "grabbing" : "grab") : "default",
               }}
             >
               <Link
@@ -371,7 +387,7 @@ function KanbanColWrapper({
                 {/* Top: ID + badges */}
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span className="font-mono text-xs font-bold" style={{ color: "var(--navy)" }}>
-                    {shortId(order.id)}
+                    {order.orderNumber ?? shortId(order.id)}
                   </span>
                   <div className="flex items-center gap-1 flex-wrap justify-end">
                     {order.isFree && (

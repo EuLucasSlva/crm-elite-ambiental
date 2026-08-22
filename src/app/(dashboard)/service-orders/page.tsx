@@ -13,8 +13,10 @@ import { Badge } from "@/components/ui/Badge";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteServiceOrder } from "@/lib/delete-actions";
-import type { ServiceOrderStatus } from "@prisma/client";
+import type { ServiceOrderStatus, Role } from "@prisma/client";
 import { currentAppDayRange, currentAppMonthRange } from "@/lib/date-time";
+import { auth } from "@/lib/auth";
+import { andWhere, isPrivileged, serviceOrderScope } from "@/lib/access";
 
 const PAGE_SIZE = 10;
 
@@ -39,6 +41,11 @@ function statusToBadgeVariant(
 }
 
 export default async function ServiceOrdersPage({ searchParams }: PageProps) {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+  const role = session.user.role as Role;
+  const canManage = isPrivileged(role);
+  const scope = serviceOrderScope(session.user.id, role);
   const params = await searchParams;
   // Kanban is the default view
   const view = params.view === "lista" ? "lista" : "kanban";
@@ -58,9 +65,10 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
         ],
       }
     : {};
-  const where = statusFilter
+  const listFilters = statusFilter
     ? { status: statusFilter, ...searchClause }
     : { ...searchClause };
+  const where = andWhere(scope, listFilters);
 
   // ── KPI stats ─────────────────────────────────────────────────────────────
   const todayRange = currentAppDayRange();
@@ -68,18 +76,18 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
 
   const [activeCount, todayCount, completedThisMonth, canceledThisMonth] =
     await Promise.all([
-      prisma.serviceOrder.count({ where: { status: { notIn: ["CLOSED", "CANCELED"] } } }),
+      prisma.serviceOrder.count({ where: andWhere(scope, { status: { notIn: ["CLOSED", "CANCELED"] } }) }),
       prisma.technicalVisit.count({
-        where: { scheduledAt: { gte: todayRange.start, lt: todayRange.endExclusive } },
+        where: { scheduledAt: { gte: todayRange.start, lt: todayRange.endExclusive }, ...(role === "TECHNICIAN" ? { technicianId: session.user.id } : {}) },
       }),
       prisma.serviceOrder.count({
-        where: { executedAt: { gte: monthRange.start, lt: monthRange.endExclusive } },
+        where: andWhere(scope, { executedAt: { gte: monthRange.start, lt: monthRange.endExclusive } }),
       }),
       prisma.serviceOrder.count({
-        where: {
+        where: andWhere(scope, {
           status: "CANCELED",
           closedAt: { gte: monthRange.start, lt: monthRange.endExclusive },
-        },
+        }),
       }),
     ]).catch(() => [0, 0, 0, 0]);
 
@@ -87,7 +95,10 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
   const kanbanOrders =
     view === "kanban"
       ? await prisma.serviceOrder.findMany({
+          // Sem filtro de status ou paginação: encerradas permanecem acumuladas
+          // no Kanban e podem ser localizadas pela busca do quadro.
           orderBy: { updatedAt: "desc" },
+          where: scope,
           select: {
             id: true,
             orderNumber: true,
@@ -150,8 +161,8 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
       {/* Page header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold leading-none" style={{ color: "var(--text)" }}>
-            ORDENS DE SERVIÇO
+          <h1 className="page-title">
+            Ordens de serviço
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             {view === "lista"
@@ -200,6 +211,7 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
             </Link>
           </div>
 
+          {canManage && (<>
           {/* Importar em lote */}
           <Link
             href="/service-orders/import"
@@ -220,12 +232,12 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
           {/* New OS */}
           <Link
             href="/service-orders/new"
-            className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-sm transition-opacity hover:opacity-90"
-            style={{ background: "var(--navy)" }}
+            className="btn-primary"
           >
             <span className="text-base leading-none">+</span>
             Nova OS
           </Link>
+          </>)}
         </div>
       </div>
 
@@ -234,11 +246,11 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
         <KpiCard label="OS Ativas" value={activeCount as number} />
         <KpiCard label="Agendadas Hoje" value={todayCount as number} />
         <KpiCard label="Concluídas este mês" value={completedThisMonth as number} />
-        <KpiCard label="Canceladas este mês" value={canceledThisMonth as number} />
+        <KpiCard label="Canceladas este mês" value={canceledThisMonth as number} tone={Number(canceledThisMonth) > 0 ? "danger" : "default"} />
       </div>
 
       {/* ── KANBAN VIEW ──────────────────────────────────────────────────── */}
-      {view === "kanban" && <KanbanBoard orders={kanbanOrders} />}
+      {view === "kanban" && <KanbanBoard orders={kanbanOrders} canMove={canManage} />}
 
       {/* ── LIST VIEW ────────────────────────────────────────────────────── */}
       {view === "lista" && (
@@ -343,14 +355,14 @@ export default async function ServiceOrdersPage({ searchParams }: PageProps) {
                           {formatDate(os.scheduledAt)}
                         </td>
                         <td className="px-2 py-3">
-                          <DeleteButton
+                          {canManage && <DeleteButton
                             size="sm"
                             action={async () => {
                               "use server";
                               return deleteServiceOrder(os.id);
                             }}
                             confirmMessage={`Apagar OS ${os.orderNumber ?? shortId(os.id)} de "${os.customer.fullName}"?\n\nTodos os dados desta OS (visitas, certificado, garantia, despesas vinculadas) serão removidos. Esta ação não pode ser desfeita.`}
-                          />
+                          />}
                         </td>
                       </tr>
                     ))

@@ -35,16 +35,23 @@ export async function createFirstAdmin(
     return { error: parsed.error.issues[0].message };
   }
 
-  const { name, email, password } = parsed.data;
+  const { name, password } = parsed.data;
+  const email = parsed.data.email.trim().toLowerCase();
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) return { error: "Este email já está em uso." };
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  await prisma.user.create({
-    data: { name, email, passwordHash, role: "ADMIN" },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const users = await tx.user.count();
+      if (users > 0) throw new Error("SETUP_ALREADY_COMPLETE");
+      await tx.user.create({ data: { name: name.trim(), email, passwordHash, role: "ADMIN" } });
+    }, { isolationLevel: "Serializable" });
+  } catch {
+    return { error: "A configuração inicial já foi concluída ou ocorreu uma disputa. Tente entrar no sistema." };
+  }
 
   redirect("/login?setup=1");
 }

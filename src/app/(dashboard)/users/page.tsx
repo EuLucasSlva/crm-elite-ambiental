@@ -34,8 +34,8 @@ export default async function UsersPage() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold leading-none" style={{ color: "var(--text)" }}>
-            USUÁRIOS
+          <h1 className="page-title">
+            Usuários
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             Gerenciamento de usuários e permissões
@@ -116,7 +116,8 @@ export default async function UsersPage() {
                             "use server";
                             return deleteUser(user.id);
                           }}
-                          confirmMessage={`Apagar usuário "${user.name}"?\n\nSe ele tiver OS associadas, será apenas desativado (soft-delete).`}
+                          label="Desativar"
+                          confirmMessage={`Desativar o acesso de "${user.name}"?\n\nO usuário não poderá entrar novamente. O histórico e a auditoria serão preservados.`}
                         />
                       )}
                     </td>

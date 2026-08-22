@@ -80,6 +80,18 @@ export async function finalizeExecution(
     return { error: "Dados obrigatórios ausentes." };
   }
 
+  const parsedScheduledAt = new Date(scheduledAt);
+  const parsedCheckInAt = checkInAt ? new Date(checkInAt) : null;
+  if (Number.isNaN(parsedScheduledAt.getTime()) || (parsedCheckInAt && Number.isNaN(parsedCheckInAt.getTime()))) {
+    return { error: "Data ou horário inválido." };
+  }
+  if (notes && notes.length > 2000) return { error: "Observações excedem 2.000 caracteres." };
+  const signatureIsValid = (value: string | null) =>
+    !value || (value.length <= 500_000 && (/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(value) || value.length <= 160));
+  if (!signatureIsValid(customerSignature) || !signatureIsValid(technicianSignature)) {
+    return { error: "Assinatura inválida ou muito grande." };
+  }
+
   // Parse application points
   let rawPoints: unknown[] = [];
   try {
@@ -119,9 +131,10 @@ export async function finalizeExecution(
   if (role === "TECHNICIAN" && order.technicianId !== session.user.id) {
     return { error: "Você não está designado para esta ordem de serviço." };
   }
+  const effectiveTechnicianId = order.technicianId ?? session.user.id;
 
   const now = new Date();
-  const checkIn = checkInAt ? new Date(checkInAt) : now;
+  const checkIn = parsedCheckInAt ?? now;
 
   // Check stock availability for all points that reference a stock item
   const stockChecks: { itemId: string; dose: number; name: string }[] = [];
@@ -171,13 +184,14 @@ export async function finalizeExecution(
   }
 
   // All good — run in transaction
-  await prisma.$transaction(async (tx) => {
+  try {
+    await prisma.$transaction(async (tx) => {
     // 1. Create the TechnicalVisit
     const visit = await tx.technicalVisit.create({
       data: {
         serviceOrderId,
-        technicianId,
-        scheduledAt: new Date(scheduledAt),
+        technicianId: effectiveTechnicianId,
+        scheduledAt: parsedScheduledAt,
         checkInAt: checkIn,
         checkOutAt: now,
         customerSignature: customerSignature || null,
@@ -212,10 +226,11 @@ export async function finalizeExecution(
           },
         });
 
-        await tx.stockItem.update({
-          where: { id: point.stockItemId },
+        const updated = await tx.stockItem.updateMany({
+          where: { id: point.stockItemId, quantity: { gte: point.doseApplied } },
           data: { quantity: { decrement: point.doseApplied } },
         });
+        if (updated.count !== 1) throw new Error(`STOCK_CHANGED:${point.productName}`);
       }
     }
 
@@ -227,7 +242,13 @@ export async function finalizeExecution(
         executedAt: now,
       },
     });
-  });
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("STOCK_CHANGED:")) {
+      return { error: `O estoque de "${error.message.slice(14)}" mudou durante a operação. Revise a quantidade e tente novamente.` };
+    }
+    return { error: "Não foi possível concluir a execução. Tente novamente." };
+  }
 
   await writeAuditLog({
     entityName: "ServiceOrder",

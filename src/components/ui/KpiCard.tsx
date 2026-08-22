@@ -12,6 +12,7 @@ interface KpiCardProps {
   value: string | number;
   subtext?: string;
   trend?: TrendProps;
+  tone?: "default" | "success" | "warning" | "danger";
 }
 
 function TrendIndicator({ trend }: { trend: TrendProps }) {
@@ -56,17 +57,23 @@ function TrendIndicator({ trend }: { trend: TrendProps }) {
   );
 }
 
-export function KpiCard({ label, value, subtext, trend }: KpiCardProps) {
+export function KpiCard({ label, value, subtext, trend, tone = "default" }: KpiCardProps) {
+  const palette = {
+    default: { accent: "var(--accent)", surface: "#ffffff" },
+    success: { accent: "var(--color-success)", surface: "#fbfefd" },
+    warning: { accent: "var(--color-warning)", surface: "#fffdf8" },
+    danger: { accent: "var(--color-error)", surface: "#fffafa" },
+  }[tone];
   return (
     <div
       className="kpi-card flex flex-col gap-1 min-w-0"
       style={{
-        background: "var(--card-bg)",
+        background: palette.surface,
         border: "1px solid var(--card-border)",
-        borderLeft: "3px solid var(--navy)",
+        borderTop: `3px solid ${palette.accent}`,
         borderRadius: "var(--radius-md)",
-        padding: "0.75rem 0.875rem",
-        boxShadow: "var(--shadow-sm)",
+        padding: "0.8rem 0.9rem 0.85rem",
+        boxShadow: "var(--shadow-xs)",
         flex: "1 1 120px",
         transition: "box-shadow var(--ease-normal), transform var(--ease-normal)",
       }}
@@ -87,7 +94,7 @@ export function KpiCard({ label, value, subtext, trend }: KpiCardProps) {
       <span
         className="font-extrabold leading-none"
         style={{
-          fontSize: "1.375rem",     /* 22px — reduzido mantendo legibilidade */
+          fontSize: "1.45rem",
           color: "var(--text)",
           letterSpacing: "-0.02em",
         }}
@@ -100,7 +107,7 @@ export function KpiCard({ label, value, subtext, trend }: KpiCardProps) {
       {subtext && (
         <span
           className="font-medium"
-          style={{ fontSize: "0.75rem", color: "var(--navy-light)" }}
+          style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}
         >
           {subtext}
         </span>

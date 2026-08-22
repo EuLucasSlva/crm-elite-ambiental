@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { NewServiceOrderForm } from "./NewServiceOrderForm";
+import { requireRoles } from "@/lib/access";
 
 interface PageProps {
   searchParams: Promise<{ customerId?: string }>;
 }
 
 export default async function NewServiceOrderPage({ searchParams }: PageProps) {
+  await requireRoles(["ADMIN", "MANAGER"]);
   const params = await searchParams;
   const preselectedCustomerId = params.customerId;
 

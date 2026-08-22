@@ -2,6 +2,7 @@
 
 import { formatDate } from "@/lib/format";
 import { formatAppDateInput } from "@/lib/date-time";
+import { escapeCsvCell } from "@/lib/csv";
 
 interface StockRow {
   name: string;
@@ -18,27 +19,19 @@ interface Props {
   items: StockRow[];
 }
 
-function escapeCell(value: string | number | null): string {
-  const str = String(value ?? "");
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
 export function StockExportButton({ items }: Props) {
   function handleExport() {
     const headers = ["Nome", "Princípio Ativo", "Unidade", "Quantidade", "Mínimo", "Validade", "Fornecedor", "Status"];
 
     const rows = items.map((item) => [
-      escapeCell(item.name),
-      escapeCell(item.activeIngredient),
-      escapeCell(item.unit),
-      escapeCell(item.quantity),
-      escapeCell(item.minThreshold),
-      escapeCell(formatDate(item.expiryDate)),
-      escapeCell(item.supplier),
-      escapeCell(item.status),
+      escapeCsvCell(item.name),
+      escapeCsvCell(item.activeIngredient),
+      escapeCsvCell(item.unit),
+      escapeCsvCell(item.quantity),
+      escapeCsvCell(item.minThreshold),
+      escapeCsvCell(formatDate(item.expiryDate)),
+      escapeCsvCell(item.supplier),
+      escapeCsvCell(item.status),
     ]);
 
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

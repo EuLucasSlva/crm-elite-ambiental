@@ -17,12 +17,14 @@ import {
 } from "@/lib/labels";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteCustomer } from "@/lib/delete-actions";
+import { requireRoles } from "@/lib/access";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function CustomerDetailPage({ params }: PageProps) {
+  await requireRoles(["ADMIN", "MANAGER"]);
   const { id } = await params;
 
   const customer = await prisma.customer.findUnique({

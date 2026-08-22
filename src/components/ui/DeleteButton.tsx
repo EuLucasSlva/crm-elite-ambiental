@@ -18,7 +18,7 @@ export function DeleteButton({
   label = "Apagar",
   redirectTo,
   size = "md",
-  variant = "danger",
+  variant = "ghost",
 }: Props) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -47,7 +47,7 @@ export function DeleteButton({
   const variantStyle =
     variant === "danger"
       ? { background: "#dc2626", color: "#fff" }
-      : { background: "transparent", color: "#dc2626", border: "1px solid #dc2626" };
+      : { background: "transparent", color: "#8f3e3e", border: "1px solid #e1caca" };
 
   return (
     <button

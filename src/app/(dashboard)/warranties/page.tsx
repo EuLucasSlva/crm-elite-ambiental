@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatDate, shortId } from "@/lib/format";
 import { WarrantiesFilter } from "./WarrantiesFilter";
+import { requireRoles } from "@/lib/access";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { SectionCard } from "@/components/ui/SectionCard";
 import { Badge } from "@/components/ui/Badge";
@@ -31,6 +32,7 @@ function getStatusBadgeProps(warranty: {
 }
 
 export default async function WarrantiesPage({ searchParams }: PageProps) {
+  await requireRoles(["ADMIN", "MANAGER"]);
   const params = await searchParams;
   const statusFilter =
     params.status && ALL_WARRANTY_STATUSES.includes(params.status as WarrantyStatus)
@@ -66,8 +68,8 @@ export default async function WarrantiesPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-extrabold leading-none" style={{ color: "var(--text)" }}>
-          GARANTIAS
+        <h1 className="page-title">
+          Garantias
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
           Acompanhamento de garantias emitidas
@@ -77,8 +79,8 @@ export default async function WarrantiesPage({ searchParams }: PageProps) {
       {/* KPI row */}
       <div className="kpi-row">
         <KpiCard label="Garantias ativas" value={activeCount} />
-        <KpiCard label="Vencendo em 30 dias" value={expiringSoonCount} />
-        <KpiCard label="Vencidas" value={expiredCount} />
+        <KpiCard label="Vencendo em 30 dias" value={expiringSoonCount} tone={expiringSoonCount > 0 ? "warning" : "default"} />
+        <KpiCard label="Vencidas" value={expiredCount} tone={expiredCount > 0 ? "danger" : "default"} />
       </div>
 
       {/* Filter */}

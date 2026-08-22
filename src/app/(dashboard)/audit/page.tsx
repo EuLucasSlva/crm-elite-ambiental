@@ -85,8 +85,8 @@ export default async function AuditPage({ searchParams }: PageProps) {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-extrabold leading-none" style={{ color: "var(--text)" }}>
-          AUDITORIA
+        <h1 className="page-title">
+          Auditoria
         </h1>
         <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
           {total} registro{total !== 1 ? "s" : ""} encontrado{total !== 1 ? "s" : ""}

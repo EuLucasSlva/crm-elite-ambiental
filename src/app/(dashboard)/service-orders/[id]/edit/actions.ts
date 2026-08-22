@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { writeAuditLog } from "@/lib/audit";
 import type { Role, ServiceType } from "@prisma/client";
 import { parseAppDateTime } from "@/lib/date-time";
+import { assertEditAllowed, TransitionError } from "@/lib/service-order-machine";
 
 const SERVICE_TYPES: [ServiceType, ...ServiceType[]] = [
   "INSPECTION", "TREATMENT", "RETURN",
@@ -62,11 +63,27 @@ export async function updateServiceOrder(
     return { errors: { scheduledAt: ["Data ou horário inválido"] } };
   }
 
+  const [technician, manager] = await Promise.all([
+    parsed.data.technicianId ? prisma.user.findUnique({ where: { id: parsed.data.technicianId }, select: { role: true, active: true } }) : null,
+    parsed.data.managerId ? prisma.user.findUnique({ where: { id: parsed.data.managerId }, select: { role: true, active: true } }) : null,
+  ]);
+  if (parsed.data.technicianId && (!technician?.active || technician.role !== "TECHNICIAN")) {
+    return { errors: { technicianId: ["Técnico inválido ou inativo"] } };
+  }
+  if (parsed.data.managerId && (!manager?.active || !["ADMIN", "MANAGER"].includes(manager.role))) {
+    return { errors: { managerId: ["Responsável inválido ou inativo"] } };
+  }
+
   const order = await prisma.serviceOrder.findUnique({
     where: { id: orderId },
-    select: { serviceType: true, scheduledAt: true, technicianId: true, managerId: true, pestTypes: true, notes: true, isFree: true, price: true },
+    select: { status: true, serviceType: true, scheduledAt: true, technicianId: true, managerId: true, pestTypes: true, notes: true, isFree: true, price: true },
   });
   if (!order) return { globalError: "OS não encontrada." };
+  try {
+    assertEditAllowed(order.status, role);
+  } catch (error) {
+    return { globalError: error instanceof TransitionError ? error.message : "Alteração não permitida." };
+  }
 
   const pestArr = parsed.data.pestTypes
     ? parsed.data.pestTypes.split(",").map((p) => p.trim()).filter(Boolean)

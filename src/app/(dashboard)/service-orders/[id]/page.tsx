@@ -101,6 +101,7 @@ export default async function ServiceOrderDetailPage({ params }: PageProps) {
 
   const orderLabel = order.orderNumber ?? shortId(order.id);
   const userRole = session?.user?.role as Role | undefined;
+  if (userRole === "TECHNICIAN" && order.technicianId !== session?.user?.id) notFound();
 
   // Determine which transitions are available for the current user
   const nextStatuses = userRole

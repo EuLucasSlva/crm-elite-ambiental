@@ -1,6 +1,8 @@
 import { NewCustomerForm } from "./NewCustomerForm";
+import { requireRoles } from "@/lib/access";
 
-export default function NewCustomerPage() {
+export default async function NewCustomerPage() {
+  await requireRoles(["ADMIN", "MANAGER"]);
   return (
     <div>
       <div className="mb-6">

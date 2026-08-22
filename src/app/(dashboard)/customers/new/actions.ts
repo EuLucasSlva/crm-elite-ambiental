@@ -9,7 +9,7 @@ import { parseAppDate } from "@/lib/date-time";
 
 const customerSchema = z.object({
   type: z.enum(["PERSON", "COMPANY"]),
-  fullName: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
+  fullName: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres").max(160),
   cpfCnpj: z
     .string()
     .min(1, "CPF/CNPJ é obrigatório")
@@ -33,7 +33,7 @@ const customerSchema = z.object({
     "PORTAL",
     "DOOR_TO_DOOR",
   ]),
-  notes: z.string().optional(),
+  notes: z.string().max(2000).optional(),
 });
 
 export type CustomerFormState = {
@@ -47,7 +47,7 @@ export async function createCustomer(
 ): Promise<CustomerFormState> {
   // Verificação de sessão — impede invocação não autenticada da Server Action.
   const session = await auth();
-  if (!session?.user) {
+  if (!session?.user || !["ADMIN", "MANAGER"].includes(session.user.role)) {
     return { errors: {}, message: "Sessão expirada. Faça login novamente." };
   }
 
@@ -110,7 +110,7 @@ export async function createCustomer(
       state: data.state.toUpperCase(),
       zip: data.zip.replace(/\D/g, ""),
       phone: data.phone.replace(/\D/g, ""),
-      email: data.email || null,
+      email: data.email?.trim().toLowerCase() || null,
       propertyType: data.propertyType,
       siteSizeM2: data.siteSizeM2,
       hadServiceBefore: data.hadServiceBefore,

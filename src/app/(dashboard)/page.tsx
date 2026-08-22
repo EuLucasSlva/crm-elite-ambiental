@@ -6,12 +6,16 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Badge } from "@/components/ui/Badge";
 import { FaturamentoChart, OsChart, type PeriodSeries } from "@/components/charts/DashboardCharts";
 import type { Role } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+import { andWhere, serviceOrderScope } from "@/lib/access";
+import Link from "next/link";
+import { ClipboardList, Plus, Users } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Data fetching
 // ---------------------------------------------------------------------------
 
-async function getDashboardStats() {
+async function getDashboardStats(scope: Prisma.ServiceOrderWhereInput, userId?: string) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -22,10 +26,10 @@ async function getDashboardStats() {
   const [openOrders, todayVisits, expiringWarranties, lowStockItems] =
     await Promise.all([
       prisma.serviceOrder.count({
-        where: { status: { notIn: ["CLOSED", "CANCELED"] } },
+        where: andWhere(scope, { status: { notIn: ["CLOSED", "CANCELED"] } }),
       }),
       prisma.technicalVisit.count({
-        where: { scheduledAt: { gte: today, lt: tomorrow } },
+        where: { scheduledAt: { gte: today, lt: tomorrow }, ...(userId ? { technicianId: userId } : {}) },
       }),
       prisma.warranty.count({
         where: { status: "ACTIVE", expiresAt: { lte: in45Days } },
@@ -39,19 +43,6 @@ async function getDashboardStats() {
   return { openOrders, todayVisits, expiringWarranties, lowStockItems };
 }
 
-async function getComparisonStats() {
-  const now = new Date();
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
-  const prevOpenOrders = await prisma.serviceOrder.count({
-    where: {
-      status: { notIn: ["CLOSED", "CANCELED"] },
-      createdAt: { gte: prevMonthStart, lt: prevMonthEnd },
-    },
-  });
-  return { prevOpenOrders };
-}
-
 function getMondayOfWeek(now: Date): Date {
   const d = new Date(now);
   const day = d.getDay();
@@ -60,7 +51,7 @@ function getMondayOfWeek(now: Date): Date {
   return d;
 }
 
-async function getChartData() {
+async function getChartData(scope: Prisma.ServiceOrderWhereInput) {
   const now = new Date();
   const monday = getMondayOfWeek(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -68,11 +59,11 @@ async function getChartData() {
 
   const [paidRows, allYearRows] = await Promise.all([
     prisma.serviceOrder.findMany({
-      where: { paymentStatus: "PAID", paidAt: { gte: yearStart } },
+      where: andWhere(scope, { paymentStatus: "PAID", paidAt: { gte: yearStart } }),
       select: { price: true, paidAt: true },
     }),
     prisma.serviceOrder.findMany({
-      where: { createdAt: { gte: monthStart } },
+      where: andWhere(scope, { createdAt: { gte: monthStart } }),
       select: { createdAt: true },
     }),
   ]);
@@ -125,7 +116,7 @@ async function getChartData() {
   }
   // also need OS from full year start — allYearRows only goes from monthStart, re-fetch needed
   const allOsYear = await prisma.serviceOrder.findMany({
-    where: { createdAt: { gte: yearStart } },
+    where: andWhere(scope, { createdAt: { gte: yearStart } }),
     select: { createdAt: true },
   });
   const osYearFull = Array(12).fill(0);
@@ -147,10 +138,10 @@ async function getChartData() {
   };
 }
 
-async function getUpcomingVisits() {
+async function getUpcomingVisits(userId?: string) {
   const now = new Date();
   return prisma.technicalVisit.findMany({
-    where: { scheduledAt: { gte: now } },
+    where: { scheduledAt: { gte: now }, ...(userId ? { technicianId: userId } : {}) },
     orderBy: { scheduledAt: "asc" },
     take: 5,
     include: {
@@ -200,23 +191,24 @@ export default async function DashboardPage() {
   const session = await auth();
   const role = session?.user?.role as Role;
   const isPrivileged = role === "ADMIN" || role === "MANAGER";
+  const scope = serviceOrderScope(session?.user?.id ?? "", role);
+  const technicianId = role === "TECHNICIAN" ? session?.user?.id : undefined;
 
   let stats = { openOrders: 0, todayVisits: 0, expiringWarranties: 0, lowStockItems: 0 };
-  let prevStats = { prevOpenOrders: 0 };
   let chartData = EMPTY_CHART;
   let upcomingVisitsRaw: Awaited<ReturnType<typeof getUpcomingVisits>> = [];
   let expiringWarrantiesRaw: Awaited<ReturnType<typeof getExpiringWarranties>> = [];
+  let dataUnavailable = false;
 
   try {
-    [stats, prevStats, chartData, upcomingVisitsRaw, expiringWarrantiesRaw] = await Promise.all([
-      getDashboardStats(),
-      getComparisonStats(),
-      getChartData(),
-      getUpcomingVisits(),
-      getExpiringWarranties(),
+    [stats, chartData, upcomingVisitsRaw, expiringWarrantiesRaw] = await Promise.all([
+      getDashboardStats(scope, technicianId),
+      getChartData(scope),
+      getUpcomingVisits(technicianId),
+      isPrivileged ? getExpiringWarranties() : Promise.resolve([]),
     ]);
   } catch {
-    // DB not connected — show zeros
+    dataUnavailable = true;
   }
 
   const now = new Date();
@@ -271,29 +263,37 @@ export default async function DashboardPage() {
         </span>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        {isPrivileged && <Link href="/service-orders/new" className="btn-primary"><Plus size={16} /> Nova ordem de serviço</Link>}
+        <Link href="/service-orders?view=lista" className="btn-secondary"><ClipboardList size={16} /> Consultar agenda</Link>
+        {isPrivileged && <Link href="/customers" className="btn-secondary"><Users size={16} /> Localizar cliente</Link>}
+      </div>
+
+      {dataUnavailable && (
+        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Não foi possível atualizar os indicadores agora. Os valores abaixo podem estar temporariamente indisponíveis.
+        </div>
+      )}
+
       {/* Operational KPI row */}
       <div className="kpi-row">
-        <KpiCard
-          label="OS em aberto"
-          value={stats.openOrders}
-          trend={{ value: stats.openOrders - prevStats.prevOpenOrders, label: "vs mês passado" }}
-        />
-        <KpiCard label="Visitas hoje" value={stats.todayVisits} />
+        <KpiCard label="OS em aberto" value={stats.openOrders} />
+        <KpiCard label="Visitas hoje" value={stats.todayVisits} tone={stats.todayVisits > 0 ? "success" : "default"} />
         {isPrivileged && (
           <>
-            <KpiCard label="Garantias vencendo" value={stats.expiringWarranties} />
-            <KpiCard label="Estoque baixo" value={stats.lowStockItems} />
+            <KpiCard label="Garantias vencendo" value={stats.expiringWarranties} tone={stats.expiringWarranties > 0 ? "warning" : "default"} />
+            <KpiCard label="Estoque baixo" value={stats.lowStockItems} tone={stats.lowStockItems > 0 ? "danger" : "default"} />
           </>
         )}
       </div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <FaturamentoChart
+      <div className={`grid grid-cols-1 gap-5 ${isPrivileged ? "lg:grid-cols-2" : ""}`}>
+        {isPrivileged && <FaturamentoChart
           semana={chartData.revenue.semana}
           mes={chartData.revenue.mes}
           ano={chartData.revenue.ano}
-        />
+        />}
         <OsChart
           semana={chartData.os.semana}
           mes={chartData.os.mes}

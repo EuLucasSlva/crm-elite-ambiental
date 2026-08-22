@@ -6,19 +6,28 @@ import type { NextRequest } from "next/server";
 const { auth } = NextAuth(authConfig);
 
 // Rotas públicas que não precisam de autenticação
-const PUBLIC_PATHS = ["/login", "/api/auth"];
+const PUBLIC_PATHS = ["/login", "/setup", "/api/auth"];
 
 // Rotas restritas por role — bloqueadas no edge antes dos Server Components
 const ROLE_PROTECTED: { prefix: string; allowedRoles: string[] }[] = [
   { prefix: "/audit", allowedRoles: ["ADMIN"] },
   { prefix: "/users", allowedRoles: ["ADMIN"] },
+  { prefix: "/customers", allowedRoles: ["ADMIN", "MANAGER"] },
+  { prefix: "/stock", allowedRoles: ["ADMIN", "MANAGER"] },
+  { prefix: "/warranties", allowedRoles: ["ADMIN", "MANAGER"] },
+  { prefix: "/financeiro", allowedRoles: ["ADMIN", "MANAGER"] },
+  { prefix: "/admin", allowedRoles: ["ADMIN", "MANAGER"] },
 ];
+
+function matchesPrefix(pathname: string, prefix: string) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
 
 export default auth(function proxy(req: NextRequest & { auth?: any }) {
   const { pathname } = req.nextUrl;
 
   // Permitir rotas públicas
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (PUBLIC_PATHS.some((p) => matchesPrefix(pathname, p))) {
     return NextResponse.next();
   }
 
@@ -32,7 +41,7 @@ export default auth(function proxy(req: NextRequest & { auth?: any }) {
   // Verificar restrições de role no edge
   const userRole: string | undefined = req.auth.user.role;
   for (const { prefix, allowedRoles } of ROLE_PROTECTED) {
-    if (pathname.startsWith(prefix) && (!userRole || !allowedRoles.includes(userRole))) {
+    if (matchesPrefix(pathname, prefix) && (!userRole || !allowedRoles.includes(userRole))) {
       return NextResponse.redirect(new URL("/", req.url));
     }
   }

@@ -2,6 +2,7 @@
 
 import { formatDate } from "@/lib/format";
 import { formatAppDateInput } from "@/lib/date-time";
+import { escapeCsvCell } from "@/lib/csv";
 
 interface CustomerRow {
   fullName: string;
@@ -18,15 +19,6 @@ interface Props {
   customers: CustomerRow[];
 }
 
-function escapeCell(value: string | number): string {
-  const str = String(value);
-  // Wrap in quotes if contains comma, quote, or newline
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
 export function ExportButton({ customers }: Props) {
   function handleExport() {
     const headers = [
@@ -41,14 +33,14 @@ export function ExportButton({ customers }: Props) {
     ];
 
     const rows = customers.map((c) => [
-      escapeCell(c.fullName),
-      escapeCell(c.cpfCnpj),
-      escapeCell(c.city),
-      escapeCell(c.state),
-      escapeCell(c.propertyType),
-      escapeCell(c.leadSource),
-      escapeCell(c.serviceOrderCount),
-      escapeCell(formatDate(c.createdAt)),
+      escapeCsvCell(c.fullName),
+      escapeCsvCell(c.cpfCnpj),
+      escapeCsvCell(c.city),
+      escapeCsvCell(c.state),
+      escapeCsvCell(c.propertyType),
+      escapeCsvCell(c.leadSource),
+      escapeCsvCell(c.serviceOrderCount),
+      escapeCsvCell(formatDate(c.createdAt)),
     ]);
 
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");

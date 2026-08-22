@@ -45,11 +45,18 @@ export async function addInsumo(
   const { stockItemId, productName, location, doseApplied, unit } = parsed.data;
 
   const [order, stockItem] = await Promise.all([
-    prisma.serviceOrder.findUnique({ where: { id: orderId }, select: { id: true, technicianId: true } }),
+    prisma.serviceOrder.findUnique({ where: { id: orderId }, select: { id: true, technicianId: true, status: true } }),
     prisma.stockItem.findUnique({ where: { id: stockItemId }, select: { quantity: true, unitCost: true, expiryDate: true, name: true } }),
   ]);
 
   if (!order) return { error: "OS não encontrada." };
+  const role = session.user.role as Role;
+  if (role === "TECHNICIAN" && order.technicianId !== session.user.id) return { error: "Você não está designado para esta OS." };
+  try {
+    assertEditAllowed(order.status, role);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Alteração não permitida." };
+  }
   if (!stockItem) return { error: "Produto não encontrado no estoque." };
   if (stockItem.expiryDate && stockItem.expiryDate < new Date()) return { error: `Produto "${productName}" está vencido.` };
   if (stockItem.quantity < doseApplied) return { error: `Estoque insuficiente. Disponível: ${stockItem.quantity}, necessário: ${doseApplied}.` };
@@ -58,7 +65,8 @@ export async function addInsumo(
   const unitCost = stockItem.unitCost;
   const techId = order.technicianId ?? session.user.id;
 
-  await prisma.$transaction(async (tx) => {
+  try {
+    await prisma.$transaction(async (tx) => {
     // Find or create a TechnicalVisit for this OS to attach the application point
     let visit = await tx.technicalVisit.findFirst({
       where: { serviceOrderId: orderId },
@@ -96,11 +104,15 @@ export async function addInsumo(
       },
     });
 
-    await tx.stockItem.update({
-      where: { id: stockItemId },
+    const updated = await tx.stockItem.updateMany({
+      where: { id: stockItemId, quantity: { gte: doseApplied } },
       data: { quantity: { decrement: doseApplied } },
     });
-  });
+    if (updated.count !== 1) throw new Error("STOCK_CHANGED");
+    });
+  } catch (error) {
+    return { error: error instanceof Error && error.message === "STOCK_CHANGED" ? "O estoque mudou durante a operação. Revise a quantidade." : "Não foi possível adicionar o insumo." };
+  }
 
   revalidatePath(`/service-orders/${orderId}`);
   return { success: true };
@@ -127,9 +139,28 @@ export async function updatePrice(
   const parsed = schema.safeParse({ orderId, price });
   if (!parsed.success) return { error: "Valor inválido." };
 
+  const order = await prisma.serviceOrder.findUnique({
+    where: { id: parsed.data.orderId },
+    select: { status: true, price: true },
+  });
+  if (!order) return { error: "OS não encontrada." };
+  try {
+    assertEditAllowed(order.status, role);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Alteração não permitida." };
+  }
+
   await prisma.serviceOrder.update({
     where: { id: parsed.data.orderId },
     data: { price: parsed.data.price, updatedAt: new Date() },
+  });
+
+  await writeAuditLog({
+    entityName: "ServiceOrder",
+    entityId: parsed.data.orderId,
+    userId: session.user.id,
+    changes: { price: { from: order.price, to: parsed.data.price } },
+    serviceOrderId: parsed.data.orderId,
   });
 
   revalidatePath(`/service-orders/${parsed.data.orderId}`);
@@ -180,6 +211,13 @@ export async function moveKanbanCard(
 
   // Same status — nothing to do
   if (order.status === parsed.data.toStatus) return { success: true };
+
+  try {
+    assertEditAllowed(order.status, role);
+    assertTransition(order.status, parsed.data.toStatus, role);
+  } catch (error) {
+    return { error: error instanceof TransitionError ? error.message : "Movimentação não permitida." };
+  }
 
   const now = new Date();
   const extra: Record<string, unknown> = {};
@@ -249,11 +287,14 @@ export async function transitionServiceOrder(
 
   const order = await prisma.serviceOrder.findUnique({
     where: { id },
-    select: { status: true },
+    select: { status: true, technicianId: true },
   });
 
   if (!order) {
     return { error: "Ordem de serviço não encontrada." };
+  }
+  if (role === "TECHNICIAN" && order.technicianId !== session.user.id) {
+    return { error: "Você não está designado para esta ordem de serviço." };
   }
 
   try {
@@ -431,26 +472,38 @@ export async function markInstallmentPaid(
   });
   if (!installment) return { error: "Parcela não encontrada." };
 
+  if (installment.status === "PAID") return { success: true };
+
   const now = new Date();
 
-  await prisma.installment.update({
-    where: { id: installmentId },
-    data: { status: "PAID", paidAt: now },
-  });
+  await prisma.$transaction(async (tx) => {
+    await tx.installment.update({
+      where: { id: installmentId },
+      data: { status: "PAID", paidAt: now },
+    });
 
   // Check if all installments are paid — if so, mark OS as fully paid
-  const allInstallments = await prisma.installment.findMany({
+    const allInstallments = await tx.installment.findMany({
     where: { serviceOrderId: installment.serviceOrderId },
     select: { status: true },
   });
 
-  const allPaid = allInstallments.every((i) => i.status === "PAID");
-  if (allPaid) {
-    await prisma.serviceOrder.update({
-      where: { id: installment.serviceOrderId },
-      data: { paidAt: now, paymentStatus: "PAID" },
-    });
-  }
+    const allPaid = allInstallments.every((i) => i.status === "PAID");
+    if (allPaid) {
+      await tx.serviceOrder.update({
+        where: { id: installment.serviceOrderId },
+        data: { paidAt: now, paymentStatus: "PAID" },
+      });
+    }
+  });
+
+  await writeAuditLog({
+    entityName: "Installment",
+    entityId: installmentId,
+    userId: session.user.id,
+    changes: { status: { from: installment.status, to: "PAID" } },
+    serviceOrderId: installment.serviceOrderId,
+  });
 
   revalidatePath(`/service-orders/${installment.serviceOrderId}`);
   revalidatePath("/financeiro");

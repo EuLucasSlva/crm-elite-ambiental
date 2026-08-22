@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { NewStockItemForm } from "./NewStockItemForm";
+import { requireRoles } from "@/lib/access";
 
-export default function NewStockItemPage() {
+export default async function NewStockItemPage() {
+  await requireRoles(["ADMIN", "MANAGER"]);
   return (
     <div className="max-w-2xl">
       {/* Breadcrumb */}

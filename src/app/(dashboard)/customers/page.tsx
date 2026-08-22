@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/ui/SectionCard";
 import { Badge } from "@/components/ui/Badge";
 import { DeleteButton } from "@/components/ui/DeleteButton";
 import { deleteCustomer } from "@/lib/delete-actions";
+import { requireRoles } from "@/lib/access";
 
 const PAGE_SIZE = 10;
 
@@ -18,6 +19,7 @@ interface PageProps {
 }
 
 export default async function CustomersPage({ searchParams }: PageProps) {
+  await requireRoles(["ADMIN", "MANAGER"]);
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const page = Math.max(1, parseInt(params.page ?? "1", 10));
@@ -34,7 +36,9 @@ export default async function CustomersPage({ searchParams }: PageProps) {
     : {};
 
   const orderBy =
-    sort === "antigos"
+    sort === "mais-os"
+      ? { serviceOrders: { _count: "desc" as const } }
+      : sort === "antigos"
       ? { createdAt: "asc" as const }
       : { createdAt: "desc" as const };
 
@@ -82,12 +86,6 @@ export default async function CustomersPage({ searchParams }: PageProps) {
       prisma.customer.count({ where: { createdAt: { gte: monthStart } } }),
     ]);
 
-  // Sort by OS count client-side since Prisma doesn't support _count ordering easily
-  if (sort === "mais-os") {
-    customers.sort((a, b) => b._count.serviceOrders - a._count.serviceOrders);
-    allCustomers.sort((a, b) => b._count.serviceOrders - a._count.serviceOrders);
-  }
-
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const exportRows = allCustomers.map((c) => ({
@@ -115,8 +113,8 @@ export default async function CustomersPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold leading-none" style={{ color: "var(--text)" }}>
-            CLIENTES
+          <h1 className="page-title">
+            Clientes
           </h1>
           <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
             {total} cliente{total !== 1 ? "s" : ""} cadastrado{total !== 1 ? "s" : ""}
@@ -126,8 +124,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
           <ExportButton customers={exportRows} />
           <Link
             href="/customers/new"
-            className="inline-flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-sm hover:opacity-90 transition-opacity"
-            style={{ background: "var(--navy)" }}
+            className="btn-primary"
           >
             <span className="text-base leading-none">+</span>
             Novo Cliente
@@ -137,7 +134,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
 
       {/* KPI row */}
       <div className="kpi-row">
-        <KpiCard label="Total de clientes" value={total} />
+        <KpiCard label={query ? "Resultados" : "Total de clientes"} value={total} />
         <KpiCard label="Residenciais" value={residentialCount} />
         <KpiCard label="Comerciais" value={commercialCount} />
         <KpiCard label="Novos este mês" value={newThisMonth} />

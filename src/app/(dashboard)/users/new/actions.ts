@@ -16,7 +16,8 @@ const createUserSchema = z
     email: z.string().email("E-mail inválido").max(150),
     password: z
       .string()
-      .min(6, "Senha deve ter ao menos 6 caracteres")
+      .min(8, "Senha deve ter ao menos 8 caracteres")
+      .regex(/\d/, "Senha deve conter ao menos um número")
       .max(100),
     confirmPassword: z.string(),
     role: z.enum(["ADMIN", "MANAGER", "TECHNICIAN"] as [Role, ...Role[]]),
@@ -62,7 +63,7 @@ export async function createUser(
     };
   }
 
-  const data = result.data;
+  const data = { ...result.data, email: result.data.email.trim().toLowerCase(), name: result.data.name.trim() };
 
   // Check email uniqueness
   const existing = await prisma.user.findUnique({
