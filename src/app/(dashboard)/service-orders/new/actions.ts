@@ -6,6 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isValidCpfOrCnpj } from "@/lib/format";
 import { formatAppDateInput, parseAppDateTime } from "@/lib/date-time";
+import {
+  canBeAssignedAsManager,
+  canBeAssignedAsTechnician,
+} from "@/lib/service-order-assignees";
 
 const serviceOrderSchema = z.object({
   customerId: z.string().min(1, "Selecione um cliente"),
@@ -79,10 +83,10 @@ export async function createServiceOrder(
     data.technicianId ? prisma.user.findUnique({ where: { id: data.technicianId }, select: { role: true, active: true } }) : null,
     data.managerId ? prisma.user.findUnique({ where: { id: data.managerId }, select: { role: true, active: true } }) : null,
   ]);
-  if (data.technicianId && (!technician?.active || technician.role !== "TECHNICIAN")) {
+  if (data.technicianId && !canBeAssignedAsTechnician(technician)) {
     return { errors: { technicianId: ["Técnico inválido ou inativo"] } };
   }
-  if (data.managerId && (!manager?.active || !["ADMIN", "MANAGER"].includes(manager.role))) {
+  if (data.managerId && !canBeAssignedAsManager(manager)) {
     return { errors: { managerId: ["Responsável inválido ou inativo"] } };
   }
 
