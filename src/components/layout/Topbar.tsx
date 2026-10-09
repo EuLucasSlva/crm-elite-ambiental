@@ -12,22 +12,19 @@ export function Topbar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const role = session?.user?.role as Role | undefined;
-  const current = NAV_GROUPS.flatMap((group) => group.items).find((item) =>
-    isNavItemActive(pathname, item.href)
-  );
-
   return (
     <header className="mobile-topbar lg:hidden">
       <Link href="/" className="mobile-brand" aria-label="Elite Ambiental — início">
         <Image
-          src="/brand/logo-horizontal-descritivo-negativo.png"
-          alt="Elite Ambiental"
-          width={710}
-          height={144}
+          src="/brand/icone-app.png"
+          alt=""
+          width={36}
+          height={36}
           priority
-          className="mobile-logo"
+          className="brand-icon brand-icon--mobile"
+          aria-hidden="true"
         />
-        <span className="mobile-current truncate">{current?.label ?? "Central operacional"}</span>
+        <span className="brand-name brand-name--mobile"><strong>elite</strong> ambiental</span>
       </Link>
 
       <details className="mobile-menu">

@@ -18,13 +18,15 @@ export function Sidebar() {
     <aside className="app-sidebar hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0">
       <Link href="/" className="sidebar-brand">
         <Image
-          src="/brand/logo-horizontal-descritivo-negativo.png"
-          alt="Elite Ambiental — Controle Integrado de Pragas"
-          width={710}
-          height={144}
+          src="/brand/icone-app.png"
+          alt=""
+          width={42}
+          height={42}
           priority
-          className="sidebar-logo"
+          className="brand-icon"
+          aria-hidden="true"
         />
+        <span className="brand-name"><strong>elite</strong> ambiental</span>
       </Link>
 
       <nav className="sidebar-nav" aria-label="Navegação principal">
