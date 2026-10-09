@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { formatDate, shortId } from "@/lib/format";
 import { PrintActions } from "../PrintActions";
+import Image from "next/image";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -73,7 +74,7 @@ export default async function PrintVisitsPage({ params }: PageProps) {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         @page { size: A4 portrait; margin: 0; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Inter, Arial, sans-serif; background: white; color: #111; }
+        body { font-family: var(--font-schibsted), Arial, sans-serif; background: white; color: #0f1715; }
         .no-print { padding: 16px 20px; background: #f3f4f6; display: flex; gap: 8px; }
         @media print { .no-print { display: none !important; } }
         @media screen { body { background: #e5e7eb; } .sheet { margin: 20px auto; box-shadow: 0 8px 32px rgba(0,0,0,.15); } }
@@ -87,13 +88,13 @@ export default async function PrintVisitsPage({ params }: PageProps) {
         .hdr {
           display: flex; align-items: flex-start; justify-content: space-between;
           padding-bottom: 9px; margin-bottom: 14px;
-          border-bottom: 2.5px solid #1e3054;
+          border-bottom: 2.5px solid #0F1715;
         }
-        .hdr-logo { font-size: 21px; font-weight: 900; color: #1e3054; letter-spacing: -0.4px; }
+        .hdr-logo { display: block; width: 175px; height: auto; margin-bottom: 4px; }
         .hdr-tagline { font-size: 9px; color: #6b7280; font-weight: 500; margin-top: 1px; }
         .hdr-os { text-align: right; }
         .hdr-os-label { font-size: 8.5px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
-        .hdr-os-num { font-size: 24px; font-weight: 900; color: #1e3054; line-height: 1; }
+        .hdr-os-num { font-size: 24px; font-weight: 900; color: #0F1715; line-height: 1; }
 
         .title { font-size: 15px; font-weight: 800; color: #111827; margin-bottom: 3px; }
         .subtitle { font-size: 11px; color: #6b7280; margin-bottom: 14px; }
@@ -105,14 +106,14 @@ export default async function PrintVisitsPage({ params }: PageProps) {
 
         table { width: 100%; border-collapse: collapse; font-size: 11px; }
         th {
-          text-align: left; font-weight: 700; color: #fff; background: #1e3054;
+          text-align: left; font-weight: 700; color: #fff; background: #0F1715;
           padding: 7px 8px; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.03em;
         }
         th:first-child { border-top-left-radius: 6px; }
         th:last-child { border-top-right-radius: 6px; }
         td { padding: 12px 8px; border-bottom: 1px solid #e5e7eb; color: #374151; vertical-align: bottom; }
         tr:nth-child(even) td { background: #f8fafc; }
-        .date-cell { font-weight: 700; color: #1e3054; font-size: 12.5px; }
+        .date-cell { font-weight: 700; color: #0F1715; font-size: 12.5px; }
         .blank { border-bottom: 1px dashed #cbd5e1; display: block; height: 14px; min-width: 70px; }
 
         .note { margin-top: 14px; font-size: 9.5px; color: #6b7280; line-height: 1.5; }
@@ -127,8 +128,8 @@ export default async function PrintVisitsPage({ params }: PageProps) {
         {/* Header */}
         <div className="hdr">
           <div>
-            <div className="hdr-logo">Elite Ambiental</div>
-            <div className="hdr-tagline">Controle de Pragas e Dedetizacao</div>
+            <Image className="hdr-logo" src="/brand/logo-horizontal.png" alt="Elite Ambiental" width={591} height={104} />
+            <div className="hdr-tagline">CONTROLE INTEGRADO DE PRAGAS</div>
           </div>
           <div className="hdr-os">
             <div className="hdr-os-label">Ordem de Servico</div>
@@ -192,7 +193,7 @@ export default async function PrintVisitsPage({ params }: PageProps) {
         </p>
 
         <div className="ftr">
-          <span>Elite Ambiental — Controle de Pragas e Dedetizacao</span>
+          <span>Elite Ambiental — Controle Integrado de Pragas</span>
           <span>OS #{orderLabel} — {formatDate(new Date())}</span>
         </div>
       </div>

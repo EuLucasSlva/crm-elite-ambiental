@@ -15,6 +15,7 @@ import {
 } from "@/lib/labels";
 import { PrintActions } from "../[id]/PrintActions";
 import type { Role, ServiceOrderStatus } from "@prisma/client";
+import Image from "next/image";
 
 interface PageProps {
   searchParams: Promise<{
@@ -133,30 +134,30 @@ export default async function BatchServiceOrdersReport({ searchParams }: PagePro
       <style>{`
         @page { size: A4 portrait; margin: 12mm; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: Arial, sans-serif; background: #eef0f4; color: #172033; }
+        body { margin: 0; font-family: var(--font-schibsted), Arial, sans-serif; background: #e6eee8; color: #0f1715; }
         .toolbar { padding: 12px; }
         .report { width: 210mm; margin: 0 auto 20px; background: #fff; padding: 12mm; }
-        .report-header { border-bottom: 3px solid #1e3054; padding-bottom: 10px; margin-bottom: 14px; }
-        .brand { font-size: 21px; font-weight: 900; color: #1e3054; }
+        .report-header { border-bottom: 3px solid #17a066; padding-bottom: 10px; margin-bottom: 14px; }
+        .brand-logo { display: block; width: 190px; height: auto; margin-bottom: 6px; }
         .muted { color: #667085; }
         .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 24px; font-size: 11px; margin-top: 10px; }
-        .meta strong { color: #1e3054; }
+        .meta strong { color: #0F1715; }
         table { width: 100%; border-collapse: collapse; font-size: 9px; }
-        th { background: #1e3054; color: white; text-align: left; padding: 6px; }
+        th { background: #0F1715; color: white; text-align: left; padding: 6px; }
         td { border-bottom: 1px solid #dde2ea; padding: 6px; vertical-align: top; }
         .summary { margin-bottom: 18px; }
         .order { break-before: page; padding-top: 2mm; }
         .order:first-of-type { break-before: auto; }
-        .order-title { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid #1e3054; padding-bottom: 7px; margin-bottom: 10px; }
-        .order-title h2 { margin: 0; font-size: 17px; color: #1e3054; }
+        .order-title { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid #0F1715; padding-bottom: 7px; margin-bottom: 10px; }
+        .order-title h2 { margin: 0; font-size: 17px; color: #0F1715; }
         .status { font-size: 10px; font-weight: 700; border: 1px solid #cbd2df; border-radius: 999px; padding: 4px 9px; }
         .box { border: 1px solid #dce1e9; border-radius: 7px; padding: 9px; margin: 8px 0; break-inside: avoid; }
-        .box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #1e3054; margin: 0 0 7px; }
+        .box h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; color: #0F1715; margin: 0 0 7px; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; font-size: 10px; }
         .full { grid-column: 1 / -1; }
         .label { display: block; color: #7a8498; font-size: 8px; text-transform: uppercase; font-weight: 700; }
         .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-        .chip { background: #edf1f7; border-radius: 4px; padding: 3px 6px; font-size: 9px; }
+        .chip { background: #E6EEE8; border-radius: 4px; padding: 3px 6px; font-size: 9px; }
         .empty { padding: 18px; text-align: center; color: #7a8498; border: 1px dashed #cbd2df; border-radius: 7px; }
         @media print {
           body { background: #fff; }
@@ -171,7 +172,7 @@ export default async function BatchServiceOrdersReport({ searchParams }: PagePro
 
       <main className="report">
         <header className="report-header">
-          <div className="brand">Elite Ambiental</div>
+          <Image className="brand-logo" src="/brand/logo-horizontal.png" alt="Elite Ambiental" width={591} height={104} />
           <div className="muted">Relatório de ordens de serviço por cliente</div>
           <div className="meta">
             <div>

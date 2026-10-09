@@ -9,9 +9,9 @@ export function SetupForm() {
   const [state, action, pending] = useActionState(createFirstAdmin, initial);
 
   return (
-    <form action={action} className="bg-white rounded-2xl shadow-xl p-6 space-y-4">
+    <form action={action} className="auth-card space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="form-label">
           Nome completo
         </label>
         <input
@@ -19,13 +19,13 @@ export function SetupForm() {
           type="text"
           required
           autoComplete="name"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input"
           placeholder="Seu nome"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="form-label">
           Email
         </label>
         <input
@@ -33,13 +33,13 @@ export function SetupForm() {
           type="email"
           required
           autoComplete="email"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input"
           placeholder="admin@suaempresa.com"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="form-label">
           Senha <span className="text-gray-400 font-normal">(mínimo 8 caracteres)</span>
         </label>
         <input
@@ -48,13 +48,13 @@ export function SetupForm() {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input"
           placeholder="••••••••"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="form-label">
           Confirmar senha
         </label>
         <input
@@ -63,7 +63,7 @@ export function SetupForm() {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input"
           placeholder="••••••••"
         />
       </div>
@@ -77,7 +77,7 @@ export function SetupForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition-colors"
+        className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
       >
         {pending ? "Criando conta…" : "Criar conta de administrador"}
       </button>

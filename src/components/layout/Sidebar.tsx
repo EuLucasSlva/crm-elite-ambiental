@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Role } from "@prisma/client";
-import { ChevronRight, Leaf, UserRound } from "lucide-react";
+import { ChevronRight, UserRound } from "lucide-react";
 import { NAV_GROUPS, isNavItemActive } from "./navigation";
 import { ROLE_LABELS } from "@/lib/labels";
 
@@ -16,11 +17,14 @@ export function Sidebar() {
   return (
     <aside className="app-sidebar hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0">
       <Link href="/" className="sidebar-brand">
-        <span className="brand-mark"><Leaf size={20} strokeWidth={2.25} /></span>
-        <span>
-          <strong>Elite Ambiental</strong>
-          <small>Central operacional</small>
-        </span>
+        <Image
+          src="/brand/logo-horizontal-descritivo-negativo.png"
+          alt="Elite Ambiental — Controle Integrado de Pragas"
+          width={710}
+          height={144}
+          priority
+          className="sidebar-logo"
+        />
       </Link>
 
       <nav className="sidebar-nav" aria-label="Navegação principal">

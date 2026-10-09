@@ -12,6 +12,7 @@ import {
 import { SERVICE_TYPE_LABELS, STATUS_LABELS } from "@/lib/labels";
 import { PrintActions } from "../[id]/PrintActions";
 import type { Role, ServiceOrderStatus } from "@prisma/client";
+import Image from "next/image";
 
 interface PageProps {
   searchParams: Promise<{
@@ -135,7 +136,7 @@ export default async function FullBatchServiceOrdersReport({
       <style>{`
         @page { size: A4 portrait; margin: 0; }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: Arial, sans-serif; color: #111827; background: #e5e7eb; }
+        body { margin: 0; font-family: var(--font-schibsted), Arial, sans-serif; color: #0f1715; background: #e6eee8; }
         .toolbar { padding: 12px; }
         .sheet {
           width: 210mm;
@@ -148,21 +149,21 @@ export default async function FullBatchServiceOrdersReport({
           break-after: page;
         }
         .sheet:last-child { break-after: auto; }
-        .header { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 2.5px solid #1e3054; }
-        .brand { color: #1e3054; font-size: 20px; font-weight: 900; }
+        .header { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 8px; margin-bottom: 10px; border-bottom: 2.5px solid #0F1715; }
+        .brand-logo { display: block; width: 175px; height: auto; margin-bottom: 4px; }
         .tagline, .issued { color: #6b7280; font-size: 8.5px; margin-top: 2px; }
         .os-head { text-align: right; }
-        .os-number { color: #1e3054; font-size: 24px; font-weight: 900; }
-        .os-status { display: inline-block; margin-top: 4px; border-radius: 3px; padding: 3px 7px; background: #1e3054; color: white; font-size: 8px; font-weight: 700; }
+        .os-number { color: #0F1715; font-size: 24px; font-weight: 900; }
+        .os-status { display: inline-block; margin-top: 4px; border-radius: 3px; padding: 3px 7px; background: #0F1715; color: white; font-size: 8px; font-weight: 700; }
         .section { border: 1px solid #e1e5ec; border-radius: 8px; padding: 8px 11px; margin-bottom: 8px; break-inside: avoid; }
-        .section-title { color: #1e3054; border-bottom: 1px solid #edf0f4; padding-bottom: 4px; margin-bottom: 6px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; }
+        .section-title { color: #0F1715; border-bottom: 1px solid #edf0f4; padding-bottom: 4px; margin-bottom: 6px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; }
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 22px; }
         .full { grid-column: 1 / -1; }
         .label { color: #8a94a7; font-size: 7.5px; font-weight: 700; text-transform: uppercase; }
         .value { color: #111827; font-size: 10.5px; font-weight: 600; line-height: 1.3; }
-        .value.big { color: #1e3054; font-size: 13px; font-weight: 800; }
+        .value.big { color: #0F1715; font-size: 13px; font-weight: 800; }
         .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-        .chip { border-radius: 4px; padding: 2px 6px; background: #eef2ff; color: #1e3054; font-size: 9px; font-weight: 600; }
+        .chip { border-radius: 4px; padding: 2px 6px; background: #E6EEE8; color: #0F1715; font-size: 9px; font-weight: 600; }
         table { width: 100%; border-collapse: collapse; font-size: 9px; }
         th { border-bottom: 1px solid #cbd2df; padding: 3px 5px; color: #6b7280; font-size: 8px; text-align: left; text-transform: uppercase; }
         td { border-bottom: 1px dotted #e1e5ec; padding: 3px 5px; }
@@ -212,9 +213,9 @@ export default async function FullBatchServiceOrdersReport({
             <article className="sheet" key={order.id}>
               <header className="header">
                 <div>
-                  <div className="brand">Elite Ambiental</div>
+                  <Image className="brand-logo" src="/brand/logo-horizontal.png" alt="Elite Ambiental" width={591} height={104} />
                   <div className="tagline">
-                    Controle de Pragas e Dedetização
+                    CONTROLE INTEGRADO DE PRAGAS
                   </div>
                   <div className="issued">
                     Emitido em {formatDateTime(new Date())}
@@ -436,7 +437,7 @@ export default async function FullBatchServiceOrdersReport({
               </section>
 
               <footer className="footer">
-                <span>Elite Ambiental — Controle de Pragas</span>
+                <span>Elite Ambiental — Controle Integrado de Pragas</span>
                 <span>
                   OS #{order.orderNumber ?? shortId(order.id)} —{" "}
                   {formatDate(effectiveDate(order))}

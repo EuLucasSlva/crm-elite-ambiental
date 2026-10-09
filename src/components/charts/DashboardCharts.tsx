@@ -14,9 +14,9 @@ const PERIOD_LABELS: Record<Period, string> = {
 };
 
 const PERIOD_DOT: Record<Period, string> = {
-  semana: "#10b981",
-  mes: "#0ea5e9",
-  ano: "#f59e0b",
+  semana: "#17A066",
+  mes: "#128452",
+  ano: "#2FC283",
 };
 
 const CHART_HEIGHT = "min(270px, 40vw)";
@@ -36,7 +36,7 @@ const datalabelsPlugin = {
       if (!meta || meta.hidden) return;
 
       ctx.save();
-      ctx.font = "600 10px Sora, sans-serif";
+      ctx.font = "600 10px 'IBM Plex Mono', monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
 
@@ -48,7 +48,7 @@ const datalabelsPlugin = {
         const isBar = (chart.config as { type?: string }).type === "bar";
         const label = isBar ? fmtBrl(value) : String(value);
 
-        let fillStyle = isBar ? "#1e4d8c" : "#059669";
+        let fillStyle = isBar ? "#128452" : "#17A066";
         if (isBar) {
           const metaDataset = chart.data.datasets[1];
           const metaVal = metaDataset ? Number(metaDataset.data[index]) : Infinity;
@@ -102,8 +102,8 @@ export function FaturamentoChart({ semana, mes, ano }: FaturamentoChartProps) {
     const avg = d.data.length > 0 ? d.data.reduce((a, b) => a + b, 0) / d.data.length : 0;
     const metaData = d.labels.map(() => avg);
 
-    const barColors = d.data.map((v) => (v < avg && avg > 0 ? "#e05c3a" : "#1e4d8c"));
-    const barHoverColors = d.data.map((v) => (v < avg && avg > 0 ? "#c44a2a" : "#163a6b"));
+    const barColors = d.data.map((v) => (v < avg && avg > 0 ? "#D98B42" : "#17A066"));
+    const barHoverColors = d.data.map((v) => (v < avg && avg > 0 ? "#B76B12" : "#128452"));
 
     chartRef.current = new Chart(ctx, {
       type: "bar",
@@ -124,7 +124,7 @@ export function FaturamentoChart({ semana, mes, ano }: FaturamentoChartProps) {
             label: "Média",
             data: avg > 0 ? metaData : [],
             type: "line" as const,
-            borderColor: "#f59e0b",
+            borderColor: "#0F1715",
             borderWidth: 2,
             borderDash: [6, 4],
             pointRadius: 0,
@@ -147,8 +147,8 @@ export function FaturamentoChart({ semana, mes, ano }: FaturamentoChartProps) {
             labels: {
               boxWidth: 12,
               boxHeight: 3,
-              font: { family: "Sora", size: 11 },
-              color: "#6b7280",
+              font: { family: "Schibsted Grotesk", size: 11 },
+              color: "#64736c",
               padding: 12,
             },
           },
@@ -165,13 +165,13 @@ export function FaturamentoChart({ semana, mes, ano }: FaturamentoChartProps) {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { font: { family: "Sora", size: 11 }, color: "#6b7280" },
+            ticks: { font: { family: "Schibsted Grotesk", size: 11 }, color: "#64736c" },
           },
           y: {
             grid: { color: "rgba(0,0,0,0.06)" },
             ticks: {
-              font: { family: "Sora", size: 11 },
-              color: "#6b7280",
+              font: { family: "IBM Plex Mono", size: 10 },
+              color: "#64736c",
               callback: (v) => `R$ ${Number(v).toLocaleString("pt-BR")}`,
             },
           },
@@ -217,12 +217,12 @@ export function OsChart({ semana, mes, ano }: OsChartProps) {
           {
             label: "OS Atendidas",
             data: d.data,
-            borderColor: "#10b981",
-            backgroundColor: "rgba(16,185,129,0.12)",
+            borderColor: "#17A066",
+            backgroundColor: "rgba(23,160,102,0.12)",
             borderWidth: 2.5,
             fill: true,
             tension: 0.4,
-            pointBackgroundColor: "#10b981",
+            pointBackgroundColor: "#17A066",
             pointBorderColor: "#fff",
             pointBorderWidth: 2,
             pointRadius: 5,
@@ -242,8 +242,8 @@ export function OsChart({ semana, mes, ano }: OsChartProps) {
             labels: {
               boxWidth: 12,
               boxHeight: 3,
-              font: { family: "Sora", size: 11 },
-              color: "#6b7280",
+              font: { family: "Schibsted Grotesk", size: 11 },
+              color: "#64736c",
               padding: 12,
             },
           },
@@ -256,11 +256,11 @@ export function OsChart({ semana, mes, ano }: OsChartProps) {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { font: { family: "Sora", size: 11 }, color: "#6b7280" },
+            ticks: { font: { family: "Schibsted Grotesk", size: 11 }, color: "#64736c" },
           },
           y: {
             grid: { color: "rgba(0,0,0,0.06)" },
-            ticks: { font: { family: "Sora", size: 11 }, color: "#6b7280", stepSize: 1 },
+            ticks: { font: { family: "IBM Plex Mono", size: 10 }, color: "#64736c", stepSize: 1 },
           },
         },
       },
@@ -292,7 +292,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[18px] p-6 shadow-sm" style={{ background: "var(--card-bg)" }}>
+    <div className="section-card p-6">
       <h2 className="text-sm font-bold mb-3" style={{ color: "var(--text)" }}>
         {title}
       </h2>
@@ -305,7 +305,7 @@ function ChartCard({
             style={
               period === p
                 ? { background: "var(--navy)", color: "#fff" }
-                : { background: "#d4d9e8", color: "var(--text)" }
+                : { background: "var(--mint)", color: "var(--text)" }
             }
           >
             <span

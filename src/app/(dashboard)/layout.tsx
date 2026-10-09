@@ -23,7 +23,7 @@ export default async function DashboardLayout({
           Padding lateral: 16px em mobile, 24px em tablet, 32px em desktop.
           Padding bottom: 80px em mobile para não colidir com o BottomNav (56px + folga).
         */}
-        <main className="lg:pl-[264px]">
+        <main className="lg:pl-[280px]">
           <div className="mx-auto w-full max-w-[1680px] px-4 py-5 pb-24 sm:px-6 lg:px-8 lg:py-7 lg:pb-10">
             <div className="page-enter">
               {children}

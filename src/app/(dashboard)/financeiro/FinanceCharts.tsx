@@ -47,8 +47,8 @@ export function FinanceCharts({ monthlySeries }: Props) {
           align: "end" as const,
           labels: {
             boxWidth: 12, boxHeight: 3,
-            font: { family: "Sora", size: 11 },
-            color: "#6b7280", padding: 12,
+            font: { family: "Schibsted Grotesk", size: 11 },
+            color: "#64736c", padding: 12,
           },
         },
         tooltip: {
@@ -61,13 +61,13 @@ export function FinanceCharts({ monthlySeries }: Props) {
       scales: {
         x: {
           grid: { display: false },
-          ticks: { font: { family: "Sora", size: 11 }, color: "#6b7280" },
+          ticks: { font: { family: "Schibsted Grotesk", size: 11 }, color: "#64736c" },
         },
         y: {
           grid: { color: "rgba(0,0,0,0.06)" },
           ticks: {
-            font: { family: "Sora", size: 11 },
-            color: "#6b7280",
+            font: { family: "IBM Plex Mono", size: 10 },
+            color: "#64736c",
             callback: (v: string | number) => fmtBrl(Number(v)),
           },
         },
@@ -84,8 +84,8 @@ export function FinanceCharts({ monthlySeries }: Props) {
           {
             label: "Faturamento",
             data: revenues,
-            backgroundColor: "#1e4d8c",
-            hoverBackgroundColor: "#163a6b",
+            backgroundColor: "#17A066",
+            hoverBackgroundColor: "#128452",
             borderRadius: 6,
             borderSkipped: false,
             order: 2,
@@ -114,12 +114,12 @@ export function FinanceCharts({ monthlySeries }: Props) {
           {
             label: "Lucro bruto",
             data: profits,
-            borderColor: "#10b981",
-            backgroundColor: "rgba(16,185,129,0.12)",
+            borderColor: "#17A066",
+            backgroundColor: "rgba(23,160,102,0.12)",
             borderWidth: 2.5,
             fill: true,
             tension: 0.4,
-            pointBackgroundColor: profits.map((p) => (p >= 0 ? "#10b981" : "#ef4444")),
+            pointBackgroundColor: profits.map((p) => (p >= 0 ? "#17A066" : "#ef4444")),
             pointBorderColor: "#fff",
             pointBorderWidth: 2,
             pointRadius: 5,
@@ -138,7 +138,7 @@ export function FinanceCharts({ monthlySeries }: Props) {
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <div className="rounded-[18px] p-6 shadow-sm" style={{ background: "var(--card-bg)" }}>
+      <div className="section-card p-6">
         <h2 className="text-sm font-bold mb-4" style={{ color: "var(--text)" }}>
           Faturamento vs Custo (6 meses)
         </h2>
@@ -146,7 +146,7 @@ export function FinanceCharts({ monthlySeries }: Props) {
           <canvas ref={revenueRef} />
         </div>
       </div>
-      <div className="rounded-[18px] p-6 shadow-sm" style={{ background: "var(--card-bg)" }}>
+      <div className="section-card p-6">
         <h2 className="text-sm font-bold mb-4" style={{ color: "var(--text)" }}>
           Lucro Bruto (6 meses)
         </h2>

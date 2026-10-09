@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 const { auth } = NextAuth(authConfig);
 
 // Rotas públicas que não precisam de autenticação
-const PUBLIC_PATHS = ["/login", "/setup", "/api/auth"];
+const PUBLIC_PATHS = ["/login", "/setup", "/api/auth", "/manifest.webmanifest"];
 
 // Rotas restritas por role — bloqueadas no edge antes dos Server Components
 const ROLE_PROTECTED: { prefix: string; allowedRoles: string[] }[] = [

@@ -49,10 +49,10 @@ export function LoginForm() {
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
-      className="bg-white rounded-xl shadow-xl p-6 space-y-4 border border-white/20"
+      className="auth-card space-y-4"
     >
       <div>
-        <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="login-email" className="form-label">
           Email
         </label>
         <input
@@ -60,7 +60,7 @@ export function LoginForm() {
           type="email"
           autoComplete="email"
           {...register("email")}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+          className="input"
           placeholder="seu@email.com"
         />
         {errors.email && (
@@ -69,7 +69,7 @@ export function LoginForm() {
       </div>
 
       <div>
-        <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="login-password" className="form-label">
           Senha
         </label>
         <input
@@ -77,7 +77,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           {...register("password")}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+          className="input"
           placeholder="••••••••"
         />
         {errors.password && (
@@ -94,7 +94,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full bg-teal-700 hover:bg-teal-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 text-sm transition-colors"
+        className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSubmitting ? "Entrando…" : "Entrar"}
       </button>

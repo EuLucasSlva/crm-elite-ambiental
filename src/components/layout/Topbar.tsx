@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { ChevronDown, Leaf, Menu, UserRound } from "lucide-react";
+import { ChevronDown, Menu, UserRound } from "lucide-react";
 import type { Role } from "@prisma/client";
 import { NAV_GROUPS, isNavItemActive } from "./navigation";
 
@@ -18,11 +19,15 @@ export function Topbar() {
   return (
     <header className="mobile-topbar lg:hidden">
       <Link href="/" className="mobile-brand" aria-label="Elite Ambiental — início">
-        <span className="brand-mark brand-mark--small"><Leaf size={17} /></span>
-        <span className="min-w-0">
-          <strong>Elite Ambiental</strong>
-          <small className="truncate">{current?.label ?? "Central operacional"}</small>
-        </span>
+        <Image
+          src="/brand/logo-horizontal-descritivo-negativo.png"
+          alt="Elite Ambiental"
+          width={710}
+          height={144}
+          priority
+          className="mobile-logo"
+        />
+        <span className="mobile-current truncate">{current?.label ?? "Central operacional"}</span>
       </Link>
 
       <details className="mobile-menu">

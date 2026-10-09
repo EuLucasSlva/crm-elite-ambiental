@@ -31,7 +31,7 @@ function TrendIndicator({ trend }: { trend: TrendProps }) {
 
   const isPositiveChange = value > 0;
   const isVisuallyGood = isPositiveChange ? isGood !== false : isGood === false;
-  const color = isVisuallyGood ? "#10b981" : "#ef4444";
+  const color = isVisuallyGood ? "#128452" : "#ef4444";
   const sign = isPositiveChange ? "+" : "";
   const displayValue = isCurrency
     ? `${sign}${formatCurrency(Math.abs(value))}`.replace("R$\u00a0", "R$ ")
@@ -60,7 +60,7 @@ function TrendIndicator({ trend }: { trend: TrendProps }) {
 export function KpiCard({ label, value, subtext, trend, tone = "default" }: KpiCardProps) {
   const palette = {
     default: { accent: "var(--accent)", surface: "#ffffff" },
-    success: { accent: "var(--color-success)", surface: "#fbfefd" },
+    success: { accent: "var(--color-success)", surface: "#f7fbf8" },
     warning: { accent: "var(--color-warning)", surface: "#fffdf8" },
     danger: { accent: "var(--color-error)", surface: "#fffafa" },
   }[tone];

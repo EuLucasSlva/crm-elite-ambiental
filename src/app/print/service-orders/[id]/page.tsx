@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { formatDate, formatDateTime, shortId } from "@/lib/format";
 import { SERVICE_TYPE_LABELS } from "@/lib/labels";
 import { PrintActions } from "./PrintActions";
+import Image from "next/image";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -87,7 +88,7 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
         @page { size: A4 portrait; margin: 0; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: Inter, Arial, sans-serif; background: white; color: #111; }
+        body { font-family: var(--font-schibsted), Arial, sans-serif; background: white; color: #0f1715; }
         .no-print { padding: 16px 20px; background: #f3f4f6; display: flex; gap: 8px; }
         @media print { .no-print { display: none !important; } }
         @media screen { body { background: #e5e7eb; } .sheet { margin: 20px auto; box-shadow: 0 8px 32px rgba(0,0,0,.15); } }
@@ -108,15 +109,15 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
           justify-content: space-between;
           padding-bottom: 8px;
           margin-bottom: 12px;
-          border-bottom: 2.5px solid #1e3054;
+          border-bottom: 2.5px solid #0F1715;
         }
-        .hdr-logo { font-size: 20px; font-weight: 900; color: #1e3054; letter-spacing: -0.4px; }
+        .hdr-logo { display: block; width: 170px; height: auto; margin-bottom: 4px; }
         .hdr-tagline { font-size: 9px; color: #6b7280; font-weight: 500; margin-top: 1px; }
         .hdr-date { font-size: 8.5px; color: #9ca3af; margin-top: 1px; }
         .hdr-os { text-align: right; }
         .hdr-os-label { font-size: 8.5px; color: #6b7280; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
-        .hdr-os-num { font-size: 26px; font-weight: 900; color: #1e3054; line-height: 1; margin-top: 1px; }
-        .hdr-os-type { margin-top: 4px; display: inline-block; background: #1e3054; color: white; font-size: 8.5px; font-weight: 700; border-radius: 3px; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .hdr-os-num { font-size: 26px; font-weight: 900; color: #0F1715; line-height: 1; margin-top: 1px; }
+        .hdr-os-type { margin-top: 4px; display: inline-block; background: #0F1715; color: white; font-size: 8.5px; font-weight: 700; border-radius: 3px; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.05em; }
 
         /* ── SECTION ── */
         .sec {
@@ -131,7 +132,7 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
           font-weight: 800;
           text-transform: uppercase;
           letter-spacing: 0.05em;
-          color: #1e3054;
+          color: #0F1715;
           margin-bottom: 7px;
           padding-bottom: 5px;
           border-bottom: 1px solid #eef1f6;
@@ -144,7 +145,7 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
           align-items: center;
           justify-content: center;
           width: 16px; height: 16px;
-          background: #1e3054; color: white;
+          background: #0F1715; color: white;
           border-radius: 4px;
           font-size: 9px; font-weight: 800;
         }
@@ -155,11 +156,11 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
         .field-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af; }
         .field-value { font-size: 12.5px; font-weight: 600; color: #111827; line-height: 1.3; }
         .field-value.big { font-size: 15px; font-weight: 800; }
-        .field-value.accent { color: #1e3054; }
+        .field-value.accent { color: #0F1715; }
         .field-full { grid-column: 1 / -1; }
 
         .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
-        .chip { background: #eef2ff; color: #1e3054; font-size: 10.5px; font-weight: 600; border-radius: 4px; padding: 2px 7px; }
+        .chip { background: #E6EEE8; color: #0F1715; font-size: 10.5px; font-weight: 600; border-radius: 4px; padding: 2px 7px; }
 
         /* ── TABLE ── */
         table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
@@ -210,8 +211,8 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
         {/* Header */}
         <div className="hdr">
           <div>
-            <div className="hdr-logo">Elite Ambiental</div>
-            <div className="hdr-tagline">Controle de Pragas e Dedetizacao</div>
+            <Image className="hdr-logo" src="/brand/logo-horizontal.png" alt="Elite Ambiental" width={591} height={104} />
+            <div className="hdr-tagline">CONTROLE INTEGRADO DE PRAGAS</div>
             <div className="hdr-date">Emitido em: {formatDateTime(new Date())}</div>
           </div>
           <div className="hdr-os">
@@ -391,7 +392,7 @@ export default async function PrintServiceOrderPage({ params }: PageProps) {
 
         {/* Footer */}
         <div className="ftr">
-          <span>Elite Ambiental — Controle de Pragas e Dedetizacao</span>
+          <span>Elite Ambiental — Controle Integrado de Pragas</span>
           <span>OS #{orderLabel} — {formatDate(new Date())}</span>
         </div>
       </div>

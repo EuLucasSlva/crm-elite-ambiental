@@ -1,25 +1,32 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { IBM_Plex_Mono, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const geist = Geist({
-  variable: "--font-geist",
+const schibsted = Schibsted_Grotesk({
+  variable: "--font-schibsted",
   subsets: ["latin"],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-ibm-plex-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
   title: "Elite Ambiental — CRM",
-  description: "Sistema de gestão Elite Ambiental — controle de pragas",
-  manifest: "/manifest.json",
+  description: "Sistema de gestão Elite Ambiental — controle integrado de pragas",
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/brand/icone-app.png",
+    apple: "/brand/icone-app.png",
   },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#173a36",
+  themeColor: "#0F1715",
 };
 
 export default function RootLayout({
@@ -28,7 +35,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" className={`${geist.variable} h-full antialiased`}>
+    <html
+      lang="pt-BR"
+      data-scroll-behavior="smooth"
+      className={`${schibsted.variable} ${ibmPlexMono.variable} h-full antialiased`}
+    >
       <body className="min-h-full">{children}</body>
     </html>
   );
